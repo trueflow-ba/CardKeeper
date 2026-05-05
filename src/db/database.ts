@@ -31,7 +31,6 @@ async function initDB(database: SQLite.SQLiteDatabase): Promise<void> {
 
 export async function insertContact(
   contact: {
-    id: string;
     name: string | null;
     title: string | null;
     company: string | null;
@@ -41,14 +40,15 @@ export async function insertContact(
     address: string | null;
     cardImagePath: string | null;
   }
-): Promise<void> {
+): Promise<string> {
   const database = await getDB();
   const now = Date.now();
+  const id = `ck_${now}_${Math.random().toString(36).slice(2, 8)}`;
   await database.runAsync(
     `INSERT INTO contacts (id, name, title, company, phone, email, website, address, card_image_path, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
-      contact.id,
+      id,
       contact.name,
       contact.title,
       contact.company,
@@ -61,6 +61,7 @@ export async function insertContact(
       now,
     ]
   );
+  return id;
 }
 
 export async function getAllContacts(): Promise<any[]> {

@@ -15,6 +15,8 @@ import { getContactById } from "../db/database";
 import { generateVCard } from "../utils/api";
 import QRCode from "react-native-qrcode-svg";
 
+const APP_DOWNLOAD_URL = "https://mrjm.zo.space/cardkeeper";
+
 interface ContactData {
   id: string;
   name: string | null;
@@ -38,6 +40,7 @@ export default function ContactDetailScreen({ navigation, route }: Props) {
   const { contactId } = route.params;
   const [contact, setContact] = useState<ContactData | null>(null);
   const [showQR, setShowQR] = useState(false);
+  const [showAppQR, setShowAppQR] = useState(false);
 
   useEffect(() => {
     loadContact();
@@ -215,12 +218,13 @@ export default function ContactDetailScreen({ navigation, route }: Props) {
         onPress={() => setShowQR(!showQR)}
       >
         <Text style={styles.qrToggleText}>
-          {showQR ? "Hide QR Code" : "Show QR Code"}
+          {showQR ? "Hide Contact QR Code" : "Show Contact QR Code"}
         </Text>
       </TouchableOpacity>
 
       {showQR && (
         <View style={styles.qrContainer}>
+          <Text style={styles.qrTitle}>Share Contact</Text>
           <QRCode
             value={vCardData}
             size={220}
@@ -228,8 +232,44 @@ export default function ContactDetailScreen({ navigation, route }: Props) {
             backgroundColor="#fff"
           />
           <Text style={styles.qrHint}>
-            Scan this QR to import contact
+            Other CardKeeper users can scan this to import this contact
           </Text>
+          <TouchableOpacity
+            style={styles.shareQRButton}
+            onPress={() => Share.share({ message: `Scan this QR to add ${contact.name} to CardKeeper!`, url: vCardData })}
+          >
+            <Text style={styles.shareQRButtonText}>Share QR</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      <TouchableOpacity
+        style={[styles.qrToggle, styles.appQrToggle]}
+        onPress={() => setShowAppQR(!showAppQR)}
+      >
+        <Text style={styles.qrToggleText}>
+          {showAppQR ? "Hide App Download QR" : "Show App Download QR"}
+        </Text>
+      </TouchableOpacity>
+
+      {showAppQR && (
+        <View style={styles.qrContainer}>
+          <Text style={styles.qrTitle}>Get CardKeeper</Text>
+          <QRCode
+            value={APP_DOWNLOAD_URL}
+            size={220}
+            color="#6c5ce7"
+            backgroundColor="#fff"
+          />
+          <Text style={styles.qrHint}>
+            Scan to download CardKeeper
+          </Text>
+          <TouchableOpacity
+            style={styles.shareQRButton}
+            onPress={() => Share.share({ message: `Get CardKeeper - Business Card Scanner & QR Contact Exchange: ${APP_DOWNLOAD_URL}` })}
+          >
+            <Text style={styles.shareQRButtonText}>Share Download Link</Text>
+          </TouchableOpacity>
         </View>
       )}
 
@@ -308,15 +348,34 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 12,
   },
+  appQrToggle: {
+    borderWidth: 1,
+    borderColor: "#6c5ce7",
+    borderStyle: "dashed",
+  },
   qrToggleText: { color: "#6c5ce7", fontWeight: "600", fontSize: 15 },
   qrContainer: {
     alignItems: "center",
     backgroundColor: "#fff",
     borderRadius: 16,
     padding: 24,
-    marginBottom: 24,
+    marginBottom: 16,
   },
-  qrHint: { color: "#888", fontSize: 12, marginTop: 12 },
+  qrTitle: {
+    color: "#1a1a2e",
+    fontSize: 16,
+    fontWeight: "700",
+    marginBottom: 16,
+  },
+  qrHint: { color: "#888", fontSize: 12, marginTop: 12, textAlign: "center" },
+  shareQRButton: {
+    marginTop: 12,
+    backgroundColor: "#6c5ce7",
+    borderRadius: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+  },
+  shareQRButtonText: { color: "#fff", fontWeight: "600", fontSize: 14 },
   actions: { flexDirection: "row", gap: 12, marginTop: 8 },
   actionButton: {
     flex: 1,

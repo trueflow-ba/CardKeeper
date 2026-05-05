@@ -9,6 +9,7 @@ import {
   ScrollView,
 } from "react-native";
 import { CameraView, CameraType, useCameraPermissions } from "expo-camera";
+import * as ImagePicker from "expo-image-picker";
 import { Paths, File, Directory } from "expo-file-system";
 import { insertContact } from "../db/database";
 import { scanBusinessCard } from "../utils/api";
@@ -56,6 +57,24 @@ export default function ScanScreen({ navigation }: Props) {
     );
   }
 
+  const saveBase64Image = (base64: string, mimeType: string): string => {
+    const cardsDir = new Directory(Paths.document, "cards");
+    if (!cardsDir.exists) {
+      cardsDir.create({ intermediates: true });
+    }
+    const ext = mimeType.includes("png") ? "png" : "jpg";
+    const fileName = `card_${Date.now()}.${ext}`;
+    const cardFile = new File(cardsDir, fileName);
+    cardFile.write(base64, { encoding: "base64" });
+    return cardFile.uri;
+  };
+
+  const processImage = async (base64: string, mimeType: string, imagePath: string) => {
+    const deviceId = `device-${Date.now()}`;
+    const result = await scanBusinessCard(base64, mimeType, deviceId);
+    setPreview({ ...result, cardImagePath: imagePath } as PreviewData);
+  };
+
   const handleScan = async () => {
     if (scanning || !cameraRef.current) return;
     setScanning(true);
@@ -72,21 +91,43 @@ export default function ScanScreen({ navigation }: Props) {
         return;
       }
 
-      // Save image using new expo-file-system API
-      const cardsDir = new Directory(Paths.document, "cards");
-      if (!cardsDir.exists) {
-        cardsDir.create({ intermediates: true });
-      }
-
-      const fileName = `card_${Date.now()}.jpg`;
-      const cardFile = new File(cardsDir, fileName);
-      cardFile.write(photo.base64, { encoding: "base64" });
-
-      const deviceId = `device-${Date.now()}`;
-      const result = await scanBusinessCard(photo.base64, "image/jpeg", deviceId);
-      setPreview({ ...result, cardImagePath: cardFile.uri } as PreviewData);
+      const imagePath = saveBase64Image(photo.base64, "image/jpeg");
+      await processImage(photo.base64, "image/jpeg", imagePath);
     } catch (err: any) {
       Alert.alert("Scan Error", err.message || "Failed to process card");
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const handlePickImage = async () => {
+    if (scanning) return;
+    setScanning(true);
+
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        quality: 0.8,
+        base64: true,
+      });
+
+      if (result.canceled || !result.assets?.[0]?.base64) {
+        setScanning(false);
+        return;
+      }
+
+      const asset = result.assets[0];
+      const mimeType = asset.mimeType || "image/jpeg";
+      const base64 = asset.base64 || "";
+      if (!base64) {
+        Alert.alert("Error", "Could not read image data");
+        setScanning(false);
+        return;
+      }
+      const imagePath = saveBase64Image(base64, mimeType);
+      await processImage(base64, mimeType, imagePath);
+    } catch (err: any) {
+      Alert.alert("Import Error", err.message || "Failed to import image");
     } finally {
       setScanning(false);
     }
@@ -97,9 +138,7 @@ export default function ScanScreen({ navigation }: Props) {
     setSaving(true);
 
     try {
-      const id = `ck_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       await insertContact({
-        id,
         name: preview.contact.name,
         title: preview.contact.title,
         company: preview.contact.company,
@@ -204,7 +243,13 @@ export default function ScanScreen({ navigation }: Props) {
           )}
         </TouchableOpacity>
 
-        <View style={{ width: 60 }} />
+        <TouchableOpacity
+          style={styles.galleryButton}
+          onPress={handlePickImage}
+          disabled={scanning}
+        >
+          <Text style={styles.galleryText}>Gallery</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -255,6 +300,12 @@ const styles = StyleSheet.create({
   },
   flipButton: { padding: 12 },
   flipText: { color: "#fff", fontSize: 14 },
+  galleryButton: {
+    padding: 12,
+    backgroundColor: "#1e1e2e",
+    borderRadius: 8,
+  },
+  galleryText: { color: "#6c5ce7", fontSize: 14, fontWeight: "600" },
   previewContainer: { padding: 20, paddingBottom: 60 },
   sectionTitle: { color: "#fff", fontSize: 22, fontWeight: "700", marginBottom: 4 },
   confidence: {
