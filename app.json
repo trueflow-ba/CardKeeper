@@ -1,0 +1,60 @@
+{
+  "expo": {
+    "name": "CardKeeper",
+    "slug": "CardKeeper",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0a0a1a"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "CardKeeper needs camera access to scan business cards",
+        "NSContactsUsageDescription": "CardKeeper needs contacts access to save scanned contacts to your phone"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0a0a1a"
+      },
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_CONTACTS",
+        "android.permission.WRITE_CONTACTS",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.CAMERA",
+        "android.permission.READ_CONTACTS",
+        "android.permission.WRITE_CONTACTS",
+        "android.permission.RECORD_AUDIO"
+      ],
+      "package": "com.anonymous.CardKeeper"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "CardKeeper needs camera access to scan business cards"
+        }
+      ],
+      [
+        "expo-contacts",
+        {
+          "contactsPermission": "CardKeeper needs contacts access to save scanned contacts to your phone"
+        }
+      ],
+      "expo-sqlite",
+      "expo-barcode-scanner"
+    ]
+  }
+}
