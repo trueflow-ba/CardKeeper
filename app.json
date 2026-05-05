@@ -28,8 +28,7 @@
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_CONTACTS",
-        "android.permission.WRITE_CONTACTS",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.WRITE_CONTACTS"
       ],
       "package": "com.anonymous.CardKeeper"
     },
@@ -40,7 +39,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "CardKeeper needs camera access to scan business cards"
+          "cameraPermission": "CardKeeper needs camera access to scan business cards and QR codes"
         }
       ],
       [
@@ -49,8 +48,7 @@
           "contactsPermission": "CardKeeper needs contacts access to save scanned contacts to your phone"
         }
       ],
-      "expo-sqlite",
-      "expo-barcode-scanner"
+      "expo-sqlite"
     ],
     "extra": {
       "eas": {
