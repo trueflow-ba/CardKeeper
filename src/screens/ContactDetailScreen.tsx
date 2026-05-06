@@ -16,8 +16,8 @@ import {
 import * as Contacts from "expo-contacts";
 import { getContactById, updateContact } from "../db/database";
 import { generateVCard } from "../utils/api";
-import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import QRCode from "react-native-qrcode-svg";
+import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 
 const APP_DOWNLOAD_URL = "https://mrjm.zo.space/cardkeeper";
 
@@ -49,22 +49,7 @@ export default function ContactDetailScreen({ navigation, route }: Props) {
   const [showAppQR, setShowAppQR] = useState(false);
   const [saving, setSaving] = useState(false);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
-
-  const handleRotateImage = async (degrees: 90 | 180 | 270) => {
-    if (!contact?.cardImagePath) return;
-    try {
-      const manipulated = await manipulateAsync(
-        contact.cardImagePath,
-        [{ rotate: degrees }],
-        { format: SaveFormat.JPEG, compress: 0.9 }
-      );
-      // Update contact with new image path
-      await updateContact(contact.id, {});
-      setContact({ ...contact, cardImagePath: manipulated.uri });
-    } catch (e: any) {
-      Alert.alert("Error", "Could not rotate image");
-    }
-  };
+  const [imageRotation, setImageRotation] = useState(0);
 
   useEffect(() => {
     loadContact();
@@ -216,6 +201,21 @@ export default function ContactDetailScreen({ navigation, route }: Props) {
     }
   };
 
+  const handleRotateImage = async (degrees: number) => {
+    if (!contact.cardImagePath) return;
+    try {
+      const result = await manipulateAsync(
+        contact.cardImagePath,
+        [{ rotate: degrees }],
+        { format: SaveFormat.JPEG, compress: 0.9 }
+      );
+      setImageRotation(prev => (prev + degrees) % 360);
+      setContact({ ...contact, cardImagePath: result.uri } as ContactData);
+    } catch (e) {
+      console.error("Rotation failed:", e);
+    }
+  };
+
   const fieldDefs = [
     { key: "name", label: "Name", icon: "👤", action: undefined as (() => void) | undefined },
     { key: "title", label: "Title", icon: "💼", action: undefined },
@@ -292,21 +292,19 @@ export default function ContactDetailScreen({ navigation, route }: Props) {
             >
               <Image
                 source={{ uri: contact.cardImagePath }}
-                style={styles.cardImage}
+                style={[styles.cardImage, { transform: [{ rotate: `${imageRotation}deg` }] }]}
                 resizeMode="contain"
               />
               <View style={styles.tapHintOverlay}>
                 <Text style={styles.tapHintText}>Tap to view full size</Text>
               </View>
             </TouchableOpacity>
-            <View style={styles.rotateButtonsRow}>
-              <TouchableOpacity style={styles.rotateBtn} onPress={() => handleRotateImage(270)}>
-                <Text style={styles.rotateBtnIcon}>↻</Text>
-                <Text style={styles.rotateBtnText}>Rotate Right</Text>
+            <View style={styles.rotationControls}>
+              <TouchableOpacity style={styles.rotateBtn} onPress={() => handleRotateImage(-90)}>
+                <Text style={styles.rotateBtnText}>↺ 90°</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.rotateBtn} onPress={() => handleRotateImage(90)}>
-                <Text style={styles.rotateBtnIcon}>↺</Text>
-                <Text style={styles.rotateBtnText}>Rotate Left</Text>
+                <Text style={styles.rotateBtnText}>↻ 90°</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -426,11 +424,7 @@ export default function ContactDetailScreen({ navigation, route }: Props) {
             style={styles.footerLogo}
             resizeMode="contain"
           />
-          <View style={styles.footerTextContainer}>
-            <Text style={styles.footerText}>Powered by</Text>
-            <Text style={styles.footerBrand}>TrueFlow Business Automations</Text>
-            <Text style={styles.footerTagline}>Your local AI partner</Text>
-          </View>
+          <Text style={styles.footerText}>Powered by TrueFlow</Text>
         </View>
       </ScrollView>
 
@@ -526,23 +520,21 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   tapHintText: { color: "#ccc", fontSize: 10, fontWeight: "500" },
-  rotateButtonsRow: {
+  rotationControls: {
     flexDirection: "row",
     justifyContent: "center",
-    gap: 12,
+    gap: 16,
     marginTop: 12,
   },
   rotateBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#2a2a4a",
+    backgroundColor: "#1e1e2e",
     borderRadius: 8,
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     paddingVertical: 8,
-    gap: 6,
+    borderWidth: 1,
+    borderColor: "#6c5ce7",
   },
-  rotateBtnIcon: { color: "#6c5ce7", fontSize: 16, fontWeight: "700" },
-  rotateBtnText: { color: "#6c5ce7", fontSize: 12, fontWeight: "600" },
+  rotateBtnText: { color: "#6c5ce7", fontWeight: "600", fontSize: 14 },
   fieldsContainer: { gap: 8, marginBottom: 24 },
   fieldCard: {
     flexDirection: "row",
@@ -613,21 +605,18 @@ const styles = StyleSheet.create({
   actionSecondary: { backgroundColor: "#2a2a4a" },
   actionButtonText: { color: "#fff", fontWeight: "600", fontSize: 15 },
   footer: {
-    flexDirection: "column",
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 50,
-    paddingTop: 32,
+    marginTop: 24,
+    paddingTop: 12,
     borderTopColor: "#1e1e2e",
     borderTopWidth: 1,
-    gap: 16,
-    paddingBottom: 40,
+    gap: 8,
+    paddingVertical: 8,
   },
-  footerLogo: { width: 200, height: 200 },
-  footerTextContainer: { alignItems: "center" },
-  footerText: { color: "#555", fontSize: 11, fontWeight: "500", marginBottom: 4 },
-  footerBrand: { color: "#888", fontSize: 14, fontWeight: "700", textAlign: "center", marginBottom: 2 },
-  footerTagline: { color: "#6c5ce7", fontSize: 12, fontWeight: "600", textAlign: "center" },
+  footerLogo: { width: 28, height: 28 },
+  footerText: { color: "#555", fontSize: 11, fontWeight: "500" },
   // Fullscreen image modal
   fullscreenContainer: {
     flex: 1,
