@@ -2,7 +2,7 @@
   "expo": {
     "name": "CardKeeper",
     "slug": "CardKeeper",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -30,7 +30,8 @@
         "android.permission.READ_CONTACTS",
         "android.permission.WRITE_CONTACTS"
       ],
-      "package": "com.anonymous.CardKeeper"
+      "package": "com.anonymous.CardKeeper",
+      "versionCode": 4
     },
     "web": {
       "favicon": "./assets/favicon.png"

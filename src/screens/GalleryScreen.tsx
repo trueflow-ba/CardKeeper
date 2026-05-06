@@ -13,6 +13,7 @@ import * as ImagePicker from "expo-image-picker";
 import { Paths, File, Directory } from "expo-file-system";
 import { insertContact } from "../db/database";
 import { scanBusinessCard } from "../utils/api";
+import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 
 interface Props {
   navigation: any;
@@ -29,7 +30,6 @@ interface PreviewData {
     website: string | null;
     address: string | null;
   };
-  confidence: string;
   cardImagePath: string;
 }
 
@@ -53,7 +53,24 @@ export default function GalleryScreen({ navigation }: Props) {
   const processImage = async (base64: string, mimeType: string, imagePath: string) => {
     const deviceId = `device-${Date.now()}`;
     const result = await scanBusinessCard(base64, mimeType, deviceId);
-    setPreview({ ...result, cardImagePath: imagePath } as PreviewData);
+    
+    // Auto-rotate image if OCR detected it's sideways
+    let finalImagePath = imagePath;
+    const rotation = (result as any).imageRotation || 0;
+    if (rotation === 90 || rotation === 180 || rotation === 270) {
+      try {
+        const manipulated = await manipulateAsync(
+          imagePath,
+          [{ rotate: rotation }],
+          { format: SaveFormat.JPEG, compress: 0.9 }
+        );
+        finalImagePath = manipulated.uri;
+      } catch (e) {
+        // If rotation fails, keep original
+      }
+    }
+    
+    setPreview({ ...result, cardImagePath: finalImagePath } as PreviewData);
   };
 
   const handlePickImage = async () => {
@@ -118,9 +135,6 @@ export default function GalleryScreen({ navigation }: Props) {
       <SafeAreaView style={styles.container}>
         <ScrollView contentContainerStyle={styles.previewContainer}>
           <Text style={styles.sectionTitle}>Scanned Information</Text>
-          <Text style={styles.confidence}>
-            Confidence: {preview.confidence}
-          </Text>
 
           <View style={styles.fieldGroup}>
             {(["name", "title", "company", "phone", "email", "website", "address"] as const).map(

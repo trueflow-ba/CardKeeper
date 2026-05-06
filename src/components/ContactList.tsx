@@ -154,7 +154,10 @@ export default function ContactList({ navigation, searchQuery }: Props) {
           style={styles.footerLogo}
           resizeMode="contain"
         />
-        <Text style={styles.footerText}>Powered by TrueFlow</Text>
+        <View style={styles.footerTextContainer}>
+          <Text style={styles.footerText}>Powered by</Text>
+          <Text style={styles.footerBrand}>TrueFlow Business Automations</Text>
+        </View>
       </View>
     </View>
   );
@@ -194,12 +197,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 10,
-    paddingBottom: 20,
+    paddingVertical: 16,
+    paddingBottom: 30,
     backgroundColor: "#0a0a1a",
+    borderTopWidth: 1,
     borderTopColor: "#1e1e2e",
-    gap: 8,
+    paddingHorizontal: 20,
+    gap: 12,
   },
-  footerLogo: { width: 24, height: 24 },
-  footerText: { color: "#555", fontSize: 11, fontWeight: "500" },
+  footerLogo: { width: 50, height: 50 },
+  footerTextContainer: { flex: 1 },
+  footerText: { color: "#555", fontSize: 10, fontWeight: "500" },
+  footerBrand: { color: "#888", fontSize: 13, fontWeight: "700" },
 });

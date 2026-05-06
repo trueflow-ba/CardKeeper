@@ -10,6 +10,8 @@ import {
   Linking,
   Share,
   TextInput,
+  Modal,
+  Dimensions,
 } from "react-native";
 import * as Contacts from "expo-contacts";
 import { getContactById, updateContact } from "../db/database";
@@ -45,6 +47,7 @@ export default function ContactDetailScreen({ navigation, route }: Props) {
   const [showQR, setShowQR] = useState(false);
   const [showAppQR, setShowAppQR] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
 
   useEffect(() => {
     loadContact();
@@ -127,27 +130,44 @@ export default function ContactDetailScreen({ navigation, route }: Props) {
   };
 
   const handleSaveToDevice = async () => {
-    const { status } = await Contacts.requestPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert("Permission Denied", "Enable contacts permission to save");
-      return;
-    }
-    const newContact: Contacts.Contact = {
-      contactType: Contacts.ContactTypes.Person,
-      name: contact.name || contact.company || "",
-      firstName: contact.name?.split(" ")[0] || contact.company?.split(" ")[0] || "",
-      lastName: contact.name?.split(" ").slice(1).join(" ") || "",
-      company: contact.company || undefined,
-      jobTitle: contact.title || undefined,
-      phoneNumbers: contact.phone ? [{ label: "work", number: contact.phone, id: "1" }] : undefined,
-      emails: contact.email ? [{ label: "work", email: contact.email, id: "1" }] : undefined,
-      note: contact.address || undefined,
-    };
     try {
+      const { status } = await Contacts.requestPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission Denied", "Enable contacts permission in Settings to save");
+        return;
+      }
+
+      const nameParts = (contact.name || "").trim().split(/\s+/);
+      const firstName = nameParts[0] || contact.company || "Unknown";
+      const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
+
+      const newContact: any = {
+        [Contacts.Fields.FirstName]: firstName,
+        [Contacts.Fields.LastName]: lastName,
+        [Contacts.Fields.Company]: contact.company || "",
+        [Contacts.Fields.JobTitle]: contact.title || "",
+        [Contacts.Fields.PhoneNumbers]: contact.phone
+          ? [{ label: "work", number: contact.phone }]
+          : [],
+        [Contacts.Fields.Emails]: contact.email
+          ? [{ label: "work", email: contact.email }]
+          : [],
+        [Contacts.Fields.Addresses]: contact.address
+          ? [{ label: "work", street: contact.address }]
+          : [],
+        [Contacts.Fields.UrlAddresses]: contact.website
+          ? [{ label: "homepage", url: contact.website }]
+          : [],
+      };
+
       await Contacts.addContactAsync(newContact);
-      Alert.alert("Saved", "Contact added to your phone");
-    } catch {
-      Alert.alert("Error", "Could not save to device contacts");
+      Alert.alert("Saved!", "Contact added to your phone contacts");
+    } catch (err: any) {
+      console.error("Save contact error:", err);
+      Alert.alert(
+        "Could Not Save",
+        `Error: ${err?.message || "Unknown error"}.\n\nMake sure Contacts permission is granted in Settings > Apps > CardKeeper > Permissions.`
+      );
     }
   };
 
@@ -190,184 +210,223 @@ export default function ContactDetailScreen({ navigation, route }: Props) {
   ];
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <View style={styles.header}>
-        <View style={styles.avatarLarge}>
-          <Text style={styles.avatarLargeText}>{avatarInitials}</Text>
+    <>
+      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+        <View style={styles.header}>
+          <View style={styles.avatarLarge}>
+            <Text style={styles.avatarLargeText}>{avatarInitials}</Text>
+          </View>
+          <Text style={styles.name}>{displayName}</Text>
+          {contact.name && contact.company && (
+            <Text style={styles.companyText}>{contact.company}</Text>
+          )}
+          {contact.title && <Text style={styles.titleText}>{contact.title}</Text>}
         </View>
-        <Text style={styles.name}>{displayName}</Text>
-        {contact.name && contact.company && (
-          <Text style={styles.companyText}>{contact.company}</Text>
-        )}
-        {contact.title && <Text style={styles.titleText}>{contact.title}</Text>}
-      </View>
 
-      <TouchableOpacity
-        style={styles.editToggle}
-        onPress={() => {
-          if (editing) {
-            handleSaveEdits();
-          } else {
-            setEditing(true);
-          }
-        }}
-        disabled={saving}
-      >
-        <Text style={styles.editToggleText}>
-          {editing ? (saving ? "Saving..." : "✓ Save Changes") : "✏️ Edit Contact"}
-        </Text>
-      </TouchableOpacity>
-
-      {editing && (
         <TouchableOpacity
-          style={styles.cancelEditBtn}
+          style={styles.editToggle}
           onPress={() => {
-            setEditFields({
-              name: contact.name || "",
-              title: contact.title || "",
-              company: contact.company || "",
-              phone: contact.phone || "",
-              email: contact.email || "",
-              website: contact.website || "",
-              address: contact.address || "",
-            });
-            setEditing(false);
+            if (editing) {
+              handleSaveEdits();
+            } else {
+              setEditing(true);
+            }
           }}
+          disabled={saving}
         >
-          <Text style={styles.cancelEditText}>Cancel</Text>
+          <Text style={styles.editToggleText}>
+            {editing ? (saving ? "Saving..." : "✓ Save Changes") : "✏️ Edit Contact"}
+          </Text>
         </TouchableOpacity>
-      )}
 
-      {contact.cardImagePath && (
-        <View style={styles.cardImageContainer}>
-          <Text style={styles.sectionLabel}>Business Card</Text>
+        {editing && (
+          <TouchableOpacity
+            style={styles.cancelEditBtn}
+            onPress={() => {
+              setEditFields({
+                name: contact.name || "",
+                title: contact.title || "",
+                company: contact.company || "",
+                phone: contact.phone || "",
+                email: contact.email || "",
+                website: contact.website || "",
+                address: contact.address || "",
+              });
+              setEditing(false);
+            }}
+          >
+            <Text style={styles.cancelEditText}>Cancel</Text>
+          </TouchableOpacity>
+        )}
+
+        {contact.cardImagePath && (
+          <View style={styles.cardImageContainer}>
+            <Text style={styles.sectionLabel}>Business Card</Text>
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => setFullscreenImage(contact.cardImagePath!)}
+            >
+              <Image
+                source={{ uri: contact.cardImagePath }}
+                style={styles.cardImage}
+                resizeMode="contain"
+              />
+              <View style={styles.tapHintOverlay}>
+                <Text style={styles.tapHintText}>Tap to view full size</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        <View style={styles.fieldsContainer}>
+          {fieldDefs.map((field) => {
+            const value = (contact as any)[field.key];
+            if (!value && !editing) return null;
+
+            if (editing) {
+              return (
+                <View key={field.key} style={styles.editFieldCard}>
+                  <Text style={styles.fieldIcon}>{field.icon}</Text>
+                  <View style={styles.editFieldContent}>
+                    <Text style={styles.fieldLabel}>{field.label}</Text>
+                    <TextInput
+                      style={styles.editInput}
+                      value={editFields[field.key] || ""}
+                      onChangeText={(text) =>
+                        setEditFields({ ...editFields, [field.key]: text })
+                      }
+                      placeholder={field.label}
+                      placeholderTextColor="#555"
+                      autoCapitalize={field.key === "email" || field.key === "website" ? "none" : "words"}
+                      keyboardType={
+                        field.key === "email" ? "email-address" :
+                        field.key === "phone" ? "phone-pad" :
+                        field.key === "website" ? "url" : "default"
+                      }
+                    />
+                  </View>
+                </View>
+              );
+            }
+
+            return (
+              <TouchableOpacity
+                key={field.key}
+                style={styles.fieldCard}
+                onPress={field.action}
+                activeOpacity={field.action ? 0.6 : 1}
+              >
+                <Text style={styles.fieldIcon}>{field.icon}</Text>
+                <View style={styles.fieldContent}>
+                  <Text style={styles.fieldLabel}>{field.label}</Text>
+                  <Text style={[styles.fieldValue, field.action && styles.fieldValueLinked]}>
+                    {value}
+                  </Text>
+                </View>
+                {field.action && <Text style={styles.fieldArrow}>›</Text>}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        <TouchableOpacity
+          style={styles.qrToggle}
+          onPress={() => setShowQR(!showQR)}
+        >
+          <Text style={styles.qrToggleText}>
+            {showQR ? "Hide Contact QR Code" : "Show Contact QR Code"}
+          </Text>
+        </TouchableOpacity>
+
+        {showQR && (
+          <View style={styles.qrContainer}>
+            <Text style={styles.qrTitle}>Share Contact</Text>
+            <QRCode value={vCardData} size={220} color="#1a1a2e" backgroundColor="#fff" />
+            <Text style={styles.qrHint}>
+              Other CardKeeper users can scan this to import this contact
+            </Text>
+            <TouchableOpacity
+              style={styles.shareQRButton}
+              onPress={() => Share.share({ message: `Scan this QR to add ${displayName} to CardKeeper!\n\n${vCardData}` })}
+            >
+              <Text style={styles.shareQRButtonText}>Share QR</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        <TouchableOpacity
+          style={[styles.qrToggle, styles.appQrToggle]}
+          onPress={() => setShowAppQR(!showAppQR)}
+        >
+          <Text style={styles.qrToggleText}>
+            {showAppQR ? "Hide App Download QR" : "Show App Download QR"}
+          </Text>
+        </TouchableOpacity>
+
+        {showAppQR && (
+          <View style={styles.qrContainer}>
+            <Text style={styles.qrTitle}>Get CardKeeper</Text>
+            <QRCode value={APP_DOWNLOAD_URL} size={220} color="#6c5ce7" backgroundColor="#fff" />
+            <Text style={styles.qrHint}>Scan to download CardKeeper</Text>
+            <TouchableOpacity
+              style={styles.shareQRButton}
+              onPress={() => Share.share({ message: `Get CardKeeper: ${APP_DOWNLOAD_URL}` })}
+            >
+              <Text style={styles.shareQRButtonText}>Share Download Link</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        <View style={styles.actions}>
+          <TouchableOpacity style={styles.actionButton} onPress={handleSaveToDevice}>
+            <Text style={styles.actionButtonText}>Save to Phone</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.actionButton, styles.actionSecondary]} onPress={handleShare}>
+            <Text style={styles.actionButtonText}>Share vCard</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.footer}>
           <Image
-            source={{ uri: contact.cardImagePath }}
-            style={styles.cardImage}
+            source={require("../../assets/images/trueflow-logo.png")}
+            style={styles.footerLogo}
             resizeMode="contain"
           />
+          <View style={styles.footerTextContainer}>
+            <Text style={styles.footerText}>Powered by</Text>
+            <Text style={styles.footerBrand}>TrueFlow Business Automations</Text>
+          </View>
         </View>
-      )}
+      </ScrollView>
 
-      <View style={styles.fieldsContainer}>
-        {fieldDefs.map((field) => {
-          const value = (contact as any)[field.key];
-          if (!value && !editing) return null;
-
-          if (editing) {
-            return (
-              <View key={field.key} style={styles.editFieldCard}>
-                <Text style={styles.fieldIcon}>{field.icon}</Text>
-                <View style={styles.editFieldContent}>
-                  <Text style={styles.fieldLabel}>{field.label}</Text>
-                  <TextInput
-                    style={styles.editInput}
-                    value={editFields[field.key] || ""}
-                    onChangeText={(text) =>
-                      setEditFields({ ...editFields, [field.key]: text })
-                    }
-                    placeholder={field.label}
-                    placeholderTextColor="#555"
-                    autoCapitalize={field.key === "email" || field.key === "website" ? "none" : "words"}
-                    keyboardType={
-                      field.key === "email" ? "email-address" :
-                      field.key === "phone" ? "phone-pad" :
-                      field.key === "website" ? "url" : "default"
-                    }
-                  />
-                </View>
-              </View>
-            );
-          }
-
-          return (
-            <TouchableOpacity
-              key={field.key}
-              style={styles.fieldCard}
-              onPress={field.action}
-              activeOpacity={field.action ? 0.6 : 1}
-            >
-              <Text style={styles.fieldIcon}>{field.icon}</Text>
-              <View style={styles.fieldContent}>
-                <Text style={styles.fieldLabel}>{field.label}</Text>
-                <Text style={[styles.fieldValue, field.action && styles.fieldValueLinked]}>
-                  {value}
-                </Text>
-              </View>
-              {field.action && <Text style={styles.fieldArrow}>›</Text>}
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-
-      <TouchableOpacity
-        style={styles.qrToggle}
-        onPress={() => setShowQR(!showQR)}
+      {/* Fullscreen image modal */}
+      <Modal
+        visible={!!fullscreenImage}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setFullscreenImage(null)}
       >
-        <Text style={styles.qrToggleText}>
-          {showQR ? "Hide Contact QR Code" : "Show Contact QR Code"}
-        </Text>
-      </TouchableOpacity>
-
-      {showQR && (
-        <View style={styles.qrContainer}>
-          <Text style={styles.qrTitle}>Share Contact</Text>
-          <QRCode value={vCardData} size={220} color="#1a1a2e" backgroundColor="#fff" />
-          <Text style={styles.qrHint}>
-            Other CardKeeper users can scan this to import this contact
-          </Text>
+        <View style={styles.fullscreenContainer}>
           <TouchableOpacity
-            style={styles.shareQRButton}
-            onPress={() => Share.share({ message: `Scan this QR to add ${displayName} to CardKeeper!`, url: vCardData })}
+            style={styles.fullscreenClose}
+            onPress={() => setFullscreenImage(null)}
           >
-            <Text style={styles.shareQRButtonText}>Share QR</Text>
+            <Text style={styles.fullscreenCloseText}>✕</Text>
           </TouchableOpacity>
+          {fullscreenImage && (
+            <Image
+              source={{ uri: fullscreenImage }}
+              style={styles.fullscreenImage}
+              resizeMode="contain"
+            />
+          )}
         </View>
-      )}
-
-      <TouchableOpacity
-        style={[styles.qrToggle, styles.appQrToggle]}
-        onPress={() => setShowAppQR(!showAppQR)}
-      >
-        <Text style={styles.qrToggleText}>
-          {showAppQR ? "Hide App Download QR" : "Show App Download QR"}
-        </Text>
-      </TouchableOpacity>
-
-      {showAppQR && (
-        <View style={styles.qrContainer}>
-          <Text style={styles.qrTitle}>Get CardKeeper</Text>
-          <QRCode value={APP_DOWNLOAD_URL} size={220} color="#6c5ce7" backgroundColor="#fff" />
-          <Text style={styles.qrHint}>Scan to download CardKeeper</Text>
-          <TouchableOpacity
-            style={styles.shareQRButton}
-            onPress={() => Share.share({ message: `Get CardKeeper: ${APP_DOWNLOAD_URL}` })}
-          >
-            <Text style={styles.shareQRButtonText}>Share Download Link</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      <View style={styles.actions}>
-        <TouchableOpacity style={styles.actionButton} onPress={handleSaveToDevice}>
-          <Text style={styles.actionButtonText}>Save to Phone</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.actionButton, styles.actionSecondary]} onPress={handleShare}>
-          <Text style={styles.actionButtonText}>Share vCard</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.footer}>
-        <Image
-          source={require("../../assets/images/trueflow-logo.png")}
-          style={styles.footerLogo}
-          resizeMode="contain"
-        />
-        <Text style={styles.footerText}>Powered by TrueFlow Business Automations</Text>
-      </View>
-    </ScrollView>
+      </Modal>
+    </>
   );
 }
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#0a0a1a" },
@@ -405,7 +464,17 @@ const styles = StyleSheet.create({
   cancelEditText: { color: "#888", fontWeight: "600", fontSize: 14 },
   cardImageContainer: { marginBottom: 24 },
   sectionLabel: { color: "#6c5ce7", fontSize: 11, fontWeight: "600", textTransform: "uppercase", marginBottom: 8 },
-  cardImage: { width: "100%", height: 180, borderRadius: 12, backgroundColor: "#1e1e2e" },
+  cardImage: { width: "100%", height: 220, borderRadius: 12, backgroundColor: "#1e1e2e" },
+  tapHintOverlay: {
+    position: "absolute",
+    bottom: 8,
+    right: 8,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  tapHintText: { color: "#ccc", fontSize: 10, fontWeight: "500" },
   fieldsContainer: { gap: 8, marginBottom: 24 },
   fieldCard: {
     flexDirection: "row",
@@ -479,12 +548,38 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 32,
-    paddingTop: 16,
+    marginTop: 40,
+    paddingTop: 24,
     borderTopColor: "#1e1e2e",
     borderTopWidth: 1,
-    gap: 10,
+    gap: 12,
   },
-  footerLogo: { width: 50, height: 50 },
-  footerText: { color: "#555", fontSize: 12, fontWeight: "500", flex: 1 },
+  footerLogo: { width: 60, height: 60 },
+  footerTextContainer: { flex: 1 },
+  footerText: { color: "#555", fontSize: 10, fontWeight: "500" },
+  footerBrand: { color: "#888", fontSize: 13, fontWeight: "700" },
+  // Fullscreen image modal
+  fullscreenContainer: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.95)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  fullscreenClose: {
+    position: "absolute",
+    top: 50,
+    right: 20,
+    zIndex: 10,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    borderRadius: 20,
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  fullscreenCloseText: { color: "#fff", fontSize: 20, fontWeight: "700" },
+  fullscreenImage: {
+    width: SCREEN_WIDTH,
+    height: SCREEN_HEIGHT * 0.8,
+  },
 });
