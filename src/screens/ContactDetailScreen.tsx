@@ -16,6 +16,7 @@ import {
 import * as Contacts from "expo-contacts";
 import { getContactById, updateContact } from "../db/database";
 import { generateVCard } from "../utils/api";
+import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import QRCode from "react-native-qrcode-svg";
 
 const APP_DOWNLOAD_URL = "https://mrjm.zo.space/cardkeeper";
@@ -48,6 +49,22 @@ export default function ContactDetailScreen({ navigation, route }: Props) {
   const [showAppQR, setShowAppQR] = useState(false);
   const [saving, setSaving] = useState(false);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
+
+  const handleRotateImage = async (degrees: 90 | 180 | 270) => {
+    if (!contact?.cardImagePath) return;
+    try {
+      const manipulated = await manipulateAsync(
+        contact.cardImagePath,
+        [{ rotate: degrees }],
+        { format: SaveFormat.JPEG, compress: 0.9 }
+      );
+      // Update contact with new image path
+      await updateContact(contact.id, {});
+      setContact({ ...contact, cardImagePath: manipulated.uri });
+    } catch (e: any) {
+      Alert.alert("Error", "Could not rotate image");
+    }
+  };
 
   useEffect(() => {
     loadContact();
@@ -282,6 +299,16 @@ export default function ContactDetailScreen({ navigation, route }: Props) {
                 <Text style={styles.tapHintText}>Tap to view full size</Text>
               </View>
             </TouchableOpacity>
+            <View style={styles.rotateButtonsRow}>
+              <TouchableOpacity style={styles.rotateBtn} onPress={() => handleRotateImage(270)}>
+                <Text style={styles.rotateBtnIcon}>↻</Text>
+                <Text style={styles.rotateBtnText}>Rotate Right</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.rotateBtn} onPress={() => handleRotateImage(90)}>
+                <Text style={styles.rotateBtnIcon}>↺</Text>
+                <Text style={styles.rotateBtnText}>Rotate Left</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         )}
 
@@ -499,6 +526,23 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   tapHintText: { color: "#ccc", fontSize: 10, fontWeight: "500" },
+  rotateButtonsRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 12,
+    marginTop: 12,
+  },
+  rotateBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#2a2a4a",
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    gap: 6,
+  },
+  rotateBtnIcon: { color: "#6c5ce7", fontSize: 16, fontWeight: "700" },
+  rotateBtnText: { color: "#6c5ce7", fontSize: 12, fontWeight: "600" },
   fieldsContainer: { gap: 8, marginBottom: 24 },
   fieldCard: {
     flexDirection: "row",
