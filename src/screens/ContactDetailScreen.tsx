@@ -394,7 +394,8 @@ export default function ContactDetailScreen({ navigation, route }: Props) {
           />
           <View style={styles.footerTextContainer}>
             <Text style={styles.footerText}>Powered by</Text>
-            <Text style={styles.footerBrand}>TrueFlow — Your local AI partner</Text>
+            <Text style={styles.footerBrand}>TrueFlow Business Automations</Text>
+            <Text style={styles.footerTagline}>Your local AI partner</Text>
           </View>
         </View>
       </ScrollView>
@@ -555,10 +556,11 @@ const styles = StyleSheet.create({
     gap: 16,
     paddingBottom: 40,
   },
-  footerLogo: { width: 180, height: 180 },
+  footerLogo: { width: 200, height: 200 },
   footerTextContainer: { alignItems: "center" },
   footerText: { color: "#555", fontSize: 11, fontWeight: "500", marginBottom: 4 },
-  footerBrand: { color: "#888", fontSize: 15, fontWeight: "700", textAlign: "center" },
+  footerBrand: { color: "#888", fontSize: 14, fontWeight: "700", textAlign: "center", marginBottom: 2 },
+  footerTagline: { color: "#6c5ce7", fontSize: 12, fontWeight: "600", textAlign: "center" },
   // Fullscreen image modal
   fullscreenContainer: {
     flex: 1,

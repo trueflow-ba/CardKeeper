@@ -200,7 +200,7 @@ export default function ScanScreen({ navigation }: Props) {
           disabled={scanning}
         >
           {scanning ? (
-            <ActivityIndicator color="#fff" size="large" />
+            <View style={styles.shutterInner} />
           ) : (
             <View style={styles.shutterInner} />
           )}
