@@ -201,6 +201,6 @@ const styles = StyleSheet.create({
     borderTopColor: "#1e1e2e",
     gap: 8,
   },
-  footerLogo: { width: 56, height: 56 },
+  footerLogo: { width: 100, height: 100 },
   footerText: { color: "#888", fontSize: 13, fontWeight: "500" },
 });
