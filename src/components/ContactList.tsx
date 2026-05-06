@@ -156,7 +156,7 @@ export default function ContactList({ navigation, searchQuery }: Props) {
         />
         <View style={styles.footerTextContainer}>
           <Text style={styles.footerText}>Powered by</Text>
-          <Text style={styles.footerBrand}>TrueFlow Business Automations</Text>
+          <Text style={styles.footerBrand}>TrueFlow — Your local AI partner</Text>
         </View>
       </View>
     </View>
@@ -194,19 +194,18 @@ const styles = StyleSheet.create({
   emptyText: { color: "#888", fontSize: 18, fontWeight: "600" },
   emptySubtext: { color: "#555", fontSize: 14, marginTop: 8, textAlign: "center" },
   footer: {
-    flexDirection: "row",
+    flexDirection: "column",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 16,
-    paddingBottom: 30,
+    paddingVertical: 32,
+    paddingBottom: 40,
     backgroundColor: "#0a0a1a",
     borderTopWidth: 1,
     borderTopColor: "#1e1e2e",
-    paddingHorizontal: 20,
-    gap: 12,
+    gap: 16,
   },
-  footerLogo: { width: 50, height: 50 },
-  footerTextContainer: { flex: 1 },
-  footerText: { color: "#555", fontSize: 10, fontWeight: "500" },
-  footerBrand: { color: "#888", fontSize: 13, fontWeight: "700" },
+  footerLogo: { width: 150, height: 150 },
+  footerTextContainer: { alignItems: "center" },
+  footerText: { color: "#555", fontSize: 11, fontWeight: "500", marginBottom: 4 },
+  footerBrand: { color: "#888", fontSize: 14, fontWeight: "700", textAlign: "center" },
 });

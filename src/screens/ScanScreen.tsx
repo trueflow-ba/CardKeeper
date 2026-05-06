@@ -208,6 +208,13 @@ export default function ScanScreen({ navigation }: Props) {
 
         <View style={{ width: 70 }} />
       </View>
+
+      {scanning && (
+        <View style={styles.scanningOverlay}>
+          <ActivityIndicator color="#6c5ce7" size="large" />
+          <Text style={styles.scanningText}>Analyzing Card...</Text>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -287,4 +294,17 @@ const styles = StyleSheet.create({
   saveButton: { backgroundColor: "#6c5ce7" },
   retakeButton: { backgroundColor: "#444" },
   buttonText: { color: "#fff", fontWeight: "600", fontSize: 16 },
+  scanningOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(10, 10, 26, 0.8)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 100,
+  },
+  scanningText: {
+    color: "#fff",
+    fontSize: 20,
+    fontWeight: "700",
+    marginTop: 20,
+  },
 });

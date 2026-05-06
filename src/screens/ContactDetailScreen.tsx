@@ -394,7 +394,7 @@ export default function ContactDetailScreen({ navigation, route }: Props) {
           />
           <View style={styles.footerTextContainer}>
             <Text style={styles.footerText}>Powered by</Text>
-            <Text style={styles.footerBrand}>TrueFlow Business Automations</Text>
+            <Text style={styles.footerBrand}>TrueFlow — Your local AI partner</Text>
           </View>
         </View>
       </ScrollView>
@@ -545,19 +545,20 @@ const styles = StyleSheet.create({
   actionSecondary: { backgroundColor: "#2a2a4a" },
   actionButtonText: { color: "#fff", fontWeight: "600", fontSize: 15 },
   footer: {
-    flexDirection: "row",
+    flexDirection: "column",
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 40,
-    paddingTop: 24,
+    marginTop: 50,
+    paddingTop: 32,
     borderTopColor: "#1e1e2e",
     borderTopWidth: 1,
-    gap: 12,
+    gap: 16,
+    paddingBottom: 40,
   },
-  footerLogo: { width: 60, height: 60 },
-  footerTextContainer: { flex: 1 },
-  footerText: { color: "#555", fontSize: 10, fontWeight: "500" },
-  footerBrand: { color: "#888", fontSize: 13, fontWeight: "700" },
+  footerLogo: { width: 180, height: 180 },
+  footerTextContainer: { alignItems: "center" },
+  footerText: { color: "#555", fontSize: 11, fontWeight: "500", marginBottom: 4 },
+  footerBrand: { color: "#888", fontSize: 15, fontWeight: "700", textAlign: "center" },
   // Fullscreen image modal
   fullscreenContainer: {
     flex: 1,
