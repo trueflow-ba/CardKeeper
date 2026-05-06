@@ -155,6 +155,7 @@ export default function ContactList({ navigation, searchQuery }: Props) {
           resizeMode="contain"
         />
         <Text style={styles.footerText}>Powered by TrueFlow</Text>
+        <Text style={styles.footerTagline}>Your local AI partner</Text>
       </View>
     </View>
   );
@@ -162,7 +163,7 @@ export default function ContactList({ navigation, searchQuery }: Props) {
 
 const styles = StyleSheet.create({
   wrapper: { flex: 1, backgroundColor: "#0a0a1a" },
-  list: { padding: 16, paddingBottom: 80 },
+  list: { padding: 16, paddingBottom: 100 },
   card: {
     flexDirection: "row",
     alignItems: "center",
@@ -191,16 +192,15 @@ const styles = StyleSheet.create({
   emptyText: { color: "#888", fontSize: 18, fontWeight: "600" },
   emptySubtext: { color: "#555", fontSize: 14, marginTop: 8, textAlign: "center" },
   footer: {
-    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 8,
-    paddingHorizontal: 16,
+    paddingVertical: 20,
+    paddingBottom: 24,
     backgroundColor: "#0a0a1a",
     borderTopWidth: 1,
     borderTopColor: "#1e1e2e",
-    gap: 8,
   },
-  footerLogo: { width: 100, height: 100 },
-  footerText: { color: "#888", fontSize: 13, fontWeight: "500" },
+  footerLogo: { width: 100, height: 100, marginBottom: 4 },
+  footerText: { color: "#888", fontSize: 12, fontWeight: "600" },
+  footerTagline: { color: "#6c5ce7", fontSize: 11, fontWeight: "500", marginTop: 2 },
 });

@@ -11,13 +11,13 @@ import {
   Share,
   TextInput,
   Modal,
+  TouchableWithoutFeedback,
   Dimensions,
 } from "react-native";
 import * as Contacts from "expo-contacts";
 import { getContactById, updateContact } from "../db/database";
 import { generateVCard } from "../utils/api";
 import QRCode from "react-native-qrcode-svg";
-import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 
 const APP_DOWNLOAD_URL = "https://mrjm.zo.space/cardkeeper";
 
@@ -201,19 +201,8 @@ export default function ContactDetailScreen({ navigation, route }: Props) {
     }
   };
 
-  const handleRotateImage = async (degrees: number) => {
-    if (!contact.cardImagePath) return;
-    try {
-      const result = await manipulateAsync(
-        contact.cardImagePath,
-        [{ rotate: degrees }],
-        { format: SaveFormat.JPEG, compress: 0.9 }
-      );
-      setImageRotation(prev => (prev + degrees) % 360);
-      setContact({ ...contact, cardImagePath: result.uri } as ContactData);
-    } catch (e) {
-      console.error("Rotation failed:", e);
-    }
+  const handleRotateImage = () => {
+    setImageRotation((prev) => (prev + 90) % 360);
   };
 
   const fieldDefs = [
@@ -235,7 +224,7 @@ export default function ContactDetailScreen({ navigation, route }: Props) {
             <Text style={styles.backText}>Back</Text>
           </TouchableOpacity>
         </View>
-        
+
         <View style={styles.header}>
           <View style={styles.avatarLarge}>
             <Text style={styles.avatarLargeText}>{avatarInitials}</Text>
@@ -292,21 +281,13 @@ export default function ContactDetailScreen({ navigation, route }: Props) {
             >
               <Image
                 source={{ uri: contact.cardImagePath }}
-                style={[styles.cardImage, { transform: [{ rotate: `${imageRotation}deg` }] }]}
+                style={styles.cardImage}
                 resizeMode="contain"
               />
               <View style={styles.tapHintOverlay}>
                 <Text style={styles.tapHintText}>Tap to view full size</Text>
               </View>
             </TouchableOpacity>
-            <View style={styles.rotationControls}>
-              <TouchableOpacity style={styles.rotateBtn} onPress={() => handleRotateImage(-90)}>
-                <Text style={styles.rotateBtnText}>↺ 90°</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.rotateBtn} onPress={() => handleRotateImage(90)}>
-                <Text style={styles.rotateBtnText}>↻ 90°</Text>
-              </TouchableOpacity>
-            </View>
           </View>
         )}
 
@@ -425,31 +406,50 @@ export default function ContactDetailScreen({ navigation, route }: Props) {
             resizeMode="contain"
           />
           <Text style={styles.footerText}>Powered by TrueFlow</Text>
+          <Text style={styles.footerTagline}>Your local AI partner</Text>
         </View>
       </ScrollView>
 
-      {/* Fullscreen image modal */}
       <Modal
         visible={!!fullscreenImage}
         transparent={true}
         animationType="fade"
-        onRequestClose={() => setFullscreenImage(null)}
+        onRequestClose={() => {
+          setFullscreenImage(null);
+          setImageRotation(0);
+        }}
       >
-        <View style={styles.fullscreenContainer}>
-          <TouchableOpacity
-            style={styles.fullscreenClose}
-            onPress={() => setFullscreenImage(null)}
-          >
-            <Text style={styles.fullscreenCloseText}>✕</Text>
-          </TouchableOpacity>
-          {fullscreenImage && (
-            <Image
-              source={{ uri: fullscreenImage }}
-              style={styles.fullscreenImage}
-              resizeMode="contain"
-            />
-          )}
-        </View>
+        <TouchableWithoutFeedback onPress={() => setFullscreenImage(null)}>
+          <View style={styles.fullscreenContainer}>
+            <TouchableOpacity
+              style={styles.fullscreenClose}
+              onPress={() => {
+                setFullscreenImage(null);
+                setImageRotation(0);
+              }}
+            >
+              <Text style={styles.fullscreenCloseText}>✕</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.rotateBtn}
+              onPress={handleRotateImage}
+            >
+              <Text style={styles.rotateBtnText}>↻</Text>
+            </TouchableOpacity>
+
+            {fullscreenImage && (
+              <Image
+                source={{ uri: fullscreenImage }}
+                style={[
+                  styles.fullscreenImage,
+                  { transform: [{ rotate: `${imageRotation}deg` }] },
+                ]}
+                resizeMode="contain"
+              />
+            )}
+          </View>
+        </TouchableWithoutFeedback>
       </Modal>
     </>
   );
@@ -520,21 +520,6 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   tapHintText: { color: "#ccc", fontSize: 10, fontWeight: "500" },
-  rotationControls: {
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 16,
-    marginTop: 12,
-  },
-  rotateBtn: {
-    backgroundColor: "#1e1e2e",
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: "#6c5ce7",
-  },
-  rotateBtnText: { color: "#6c5ce7", fontWeight: "600", fontSize: 14 },
   fieldsContainer: { gap: 8, marginBottom: 24 },
   fieldCard: {
     flexDirection: "row",
@@ -605,19 +590,17 @@ const styles = StyleSheet.create({
   actionSecondary: { backgroundColor: "#2a2a4a" },
   actionButtonText: { color: "#fff", fontWeight: "600", fontSize: 15 },
   footer: {
-    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 24,
-    paddingTop: 12,
-    borderTopColor: "#1e1e2e",
+    marginTop: 50,
+    paddingTop: 24,
+    paddingBottom: 40,
     borderTopWidth: 1,
-    gap: 8,
-    paddingVertical: 8,
+    borderTopColor: "#1e1e2e",
   },
-  footerLogo: { width: 56, height: 56 },
-  footerText: { color: "#888", fontSize: 13, fontWeight: "500" },
-  // Fullscreen image modal
+  footerLogo: { width: 100, height: 100, marginBottom: 4 },
+  footerText: { color: "#888", fontSize: 12, fontWeight: "600" },
+  footerTagline: { color: "#6c5ce7", fontSize: 11, fontWeight: "500", marginTop: 2 },
   fullscreenContainer: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.95)",
@@ -637,6 +620,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   fullscreenCloseText: { color: "#fff", fontSize: 20, fontWeight: "700" },
+  rotateBtn: {
+    position: "absolute",
+    top: 50,
+    left: 20,
+    zIndex: 10,
+    backgroundColor: "rgba(108, 92, 231, 0.5)",
+    borderRadius: 20,
+    width: 44,
+    height: 44,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  rotateBtnText: { color: "#fff", fontSize: 24, fontWeight: "700" },
   fullscreenImage: {
     width: SCREEN_WIDTH,
     height: SCREEN_HEIGHT * 0.8,
