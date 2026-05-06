@@ -8,12 +8,15 @@ import {
   Alert,
   SafeAreaView,
   ScrollView,
+  Dimensions,
 } from "react-native";
 import { CameraView, CameraType, useCameraPermissions } from "expo-camera";
 import { Paths, File, Directory } from "expo-file-system";
 import { insertContact } from "../db/database";
 import { scanBusinessCard } from "../utils/api";
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 interface Props {
   navigation: any;
@@ -37,9 +40,14 @@ export default function ScanScreen({ navigation }: Props) {
   const [permission, requestPermission] = useCameraPermissions();
   const [scanning, setScanning] = useState(false);
   const [facing, setFacing] = useState<CameraType>("back");
+  const [portraitMode, setPortraitMode] = useState(false);
   const [preview, setPreview] = useState<PreviewData | null>(null);
   const [saving, setSaving] = useState(false);
   const cameraRef = useRef<any>(null);
+
+  // Frame dimensions based on mode
+  const FRAME_WIDTH = portraitMode ? 180 : 300;
+  const FRAME_HEIGHT = portraitMode ? 300 : 180;
 
   if (!permission) return <View style={styles.container} />;
 
@@ -75,33 +83,86 @@ export default function ScanScreen({ navigation }: Props) {
 
     try {
       const photo = await cameraRef.current.takePictureAsync({
-        quality: 0.8,
+        quality: 0.9,
         base64: true,
         skipProcessing: false,
       });
 
-      if (!photo?.base64) {
+      if (!photo?.base64 || !photo?.uri) {
         Alert.alert("Error", "Failed to capture image");
+        setScanning(false);
         return;
       }
 
-      const imagePath = saveBase64Image(photo.base64, "image/jpeg");
+      // Calculate crop region based on frame position
+      // Camera preview fills the cameraContainer (flex: 1), minus controls bar
+      const cameraHeight = SCREEN_HEIGHT - 120 - 44; // screen - controls - status bar
+      const cameraWidth = SCREEN_WIDTH;
+
+      // Frame is centered in the camera view
+      const frameX = (cameraWidth - FRAME_WIDTH) / 2;
+      const frameY = (cameraHeight - FRAME_HEIGHT) / 2;
+
+      // Calculate scale factor (captured image vs screen preview)
+      // Photo dimensions come from the camera (typically 4:3 aspect ratio)
+      const photoWidth = photo.width || 3024;
+      const photoHeight = photo.height || 4032;
+
+      // Scale from screen coordinates to image coordinates
+      const scaleX = photoWidth / cameraWidth;
+      const scaleY = photoHeight / cameraHeight;
+
+      // Calculate crop region in image coordinates
+      const cropX = Math.max(0, Math.floor(frameX * scaleX));
+      const cropY = Math.max(0, Math.floor(frameY * scaleY));
+      const cropWidth = Math.floor(FRAME_WIDTH * scaleX);
+      const cropHeight = Math.floor(FRAME_HEIGHT * scaleY);
+
+      // Crop the image to just the frame area
+      let croppedUri = photo.uri;
+      try {
+        const cropped = await manipulateAsync(
+          photo.uri,
+          [{
+            crop: {
+              originX: cropX,
+              originY: cropY,
+              width: cropWidth,
+              height: cropHeight,
+            }
+          }],
+          { format: SaveFormat.JPEG, compress: 0.9 }
+        );
+        croppedUri = cropped.uri;
+      } catch (cropError) {
+        console.warn("Crop failed, using full image:", cropError);
+      }
+
+      // Read the cropped image as base64 for OCR
+      let base64ForOCR = photo.base64;
+      try {
+        const croppedFile = new File(croppedUri);
+        base64ForOCR = await croppedFile.base64();
+      } catch {
+        // If reading cropped file fails, use original base64
+      }
+
       const deviceId = `device-${Date.now()}`;
-      const result = await scanBusinessCard(photo.base64, "image/jpeg", deviceId);
+      const result = await scanBusinessCard(base64ForOCR, "image/jpeg", deviceId);
       
       // Auto-rotate image if OCR detected it's sideways
-      let finalImagePath = imagePath;
+      let finalImagePath = croppedUri;
       const rotation = (result as any).imageRotation || 0;
       if (rotation === 90 || rotation === 180 || rotation === 270) {
         try {
           const manipulated = await manipulateAsync(
-            imagePath,
+            croppedUri,
             [{ rotate: rotation }],
             { format: SaveFormat.JPEG, compress: 0.9 }
           );
           finalImagePath = manipulated.uri;
         } catch (e) {
-          // If rotation fails, keep original
+          // If rotation fails, keep cropped image
         }
       }
       
@@ -180,7 +241,8 @@ export default function ScanScreen({ navigation }: Props) {
       <View style={styles.cameraContainer}>
         <CameraView ref={cameraRef} style={styles.camera} facing={facing}>
           <View style={styles.overlay}>
-            <View style={styles.scanFrame} />
+            <View style={[styles.scanFrame, { width: FRAME_WIDTH, height: FRAME_HEIGHT }]} />
+            <Text style={styles.frameHint}>Position card inside frame</Text>
           </View>
         </CameraView>
       </View>
@@ -199,14 +261,16 @@ export default function ScanScreen({ navigation }: Props) {
           onPress={handleScan}
           disabled={scanning}
         >
-          {scanning ? (
-            <View style={styles.shutterInner} />
-          ) : (
-            <View style={styles.shutterInner} />
-          )}
+          <View style={styles.shutterInner} />
         </TouchableOpacity>
 
-        <View style={{ width: 70 }} />
+        <TouchableOpacity
+          style={[styles.controlBtn, portraitMode && styles.portraitActive]}
+          onPress={() => setPortraitMode(!portraitMode)}
+        >
+          <Text style={styles.controlIcon}>{portraitMode ? "📱" : "📐"}</Text>
+          <Text style={[styles.controlLabel, portraitMode && styles.portraitLabel]}>Portrait</Text>
+        </TouchableOpacity>
       </View>
 
       {scanning && (
@@ -227,14 +291,19 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.3)",
+    backgroundColor: "rgba(0,0,0,0.5)",
   },
   scanFrame: {
-    width: 280,
-    height: 160,
-    borderWidth: 2,
+    borderWidth: 3,
     borderColor: "#6c5ce7",
     borderRadius: 12,
+    backgroundColor: "transparent",
+  },
+  frameHint: {
+    color: "#6c5ce7",
+    fontSize: 14,
+    fontWeight: "600",
+    marginTop: 16,
   },
   controlsBar: {
     height: 120,
@@ -253,6 +322,14 @@ const styles = StyleSheet.create({
     height: 70,
     borderRadius: 16,
     backgroundColor: "#1e1e2e",
+  },
+  portraitActive: {
+    backgroundColor: "#6c5ce7",
+    borderWidth: 2,
+    borderColor: "#fff",
+  },
+  portraitLabel: {
+    color: "#fff",
   },
   controlIcon: { fontSize: 24, marginBottom: 2 },
   controlLabel: { color: "#888", fontSize: 11, fontWeight: "600" },
@@ -283,8 +360,7 @@ const styles = StyleSheet.create({
   },
   grantBtnText: { color: "#fff", fontWeight: "600", fontSize: 16 },
   previewContainer: { padding: 20, paddingBottom: 60 },
-  sectionTitle: { color: "#fff", fontSize: 22, fontWeight: "700", marginBottom: 4 },
-  confidence: { color: "#6c5ce7", fontSize: 13, marginBottom: 20, textTransform: "uppercase", fontWeight: "600" },
+  sectionTitle: { color: "#fff", fontSize: 22, fontWeight: "700", marginBottom: 16 },
   fieldGroup: { gap: 12, marginBottom: 24 },
   fieldRow: { backgroundColor: "#1e1e2e", borderRadius: 10, padding: 14 },
   fieldLabel: { color: "#6c5ce7", fontSize: 11, fontWeight: "600", textTransform: "uppercase", marginBottom: 4 },
@@ -296,7 +372,7 @@ const styles = StyleSheet.create({
   buttonText: { color: "#fff", fontWeight: "600", fontSize: 16 },
   scanningOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(10, 10, 26, 0.8)",
+    backgroundColor: "rgba(10, 10, 26, 0.9)",
     justifyContent: "center",
     alignItems: "center",
     zIndex: 100,

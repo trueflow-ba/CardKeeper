@@ -212,6 +212,13 @@ export default function ContactDetailScreen({ navigation, route }: Props) {
   return (
     <>
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+        <View style={styles.headerRow}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+            <Text style={styles.backIcon}>←</Text>
+            <Text style={styles.backText}>Back</Text>
+          </TouchableOpacity>
+        </View>
+        
         <View style={styles.header}>
           <View style={styles.avatarLarge}>
             <Text style={styles.avatarLargeText}>{avatarInitials}</Text>
@@ -433,6 +440,22 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#0a0a1a" },
   content: { padding: 20, paddingBottom: 60 },
   loading: { color: "#888", textAlign: "center", marginTop: 40 },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  backBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#1e1e2e",
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    gap: 6,
+  },
+  backIcon: { color: "#6c5ce7", fontSize: 18, fontWeight: "700" },
+  backText: { color: "#6c5ce7", fontSize: 14, fontWeight: "600" },
   header: { alignItems: "center", marginBottom: 24 },
   avatarLarge: {
     width: 80,
