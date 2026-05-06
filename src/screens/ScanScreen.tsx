@@ -6,11 +6,10 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
-  ScrollView,
   SafeAreaView,
+  ScrollView,
 } from "react-native";
 import { CameraView, CameraType, useCameraPermissions } from "expo-camera";
-import * as ImagePicker from "expo-image-picker";
 import { Paths, File, Directory } from "expo-file-system";
 import { insertContact } from "../db/database";
 import { scanBusinessCard } from "../utils/api";
@@ -51,8 +50,8 @@ export default function ScanScreen({ navigation }: Props) {
         <Text style={styles.subtitle}>
           CardKeeper needs camera access to scan business cards
         </Text>
-        <TouchableOpacity style={styles.button} onPress={requestPermission}>
-          <Text style={styles.buttonText}>Grant Permission</Text>
+        <TouchableOpacity style={styles.grantBtn} onPress={requestPermission}>
+          <Text style={styles.grantBtnText}>Grant Permission</Text>
         </TouchableOpacity>
       </View>
     );
@@ -68,12 +67,6 @@ export default function ScanScreen({ navigation }: Props) {
     const cardFile = new File(cardsDir, fileName);
     cardFile.write(base64, { encoding: "base64" });
     return cardFile.uri;
-  };
-
-  const processImage = async (base64: string, mimeType: string, imagePath: string) => {
-    const deviceId = `device-${Date.now()}`;
-    const result = await scanBusinessCard(base64, mimeType, deviceId);
-    setPreview({ ...result, cardImagePath: imagePath } as PreviewData);
   };
 
   const handleScan = async () => {
@@ -93,42 +86,11 @@ export default function ScanScreen({ navigation }: Props) {
       }
 
       const imagePath = saveBase64Image(photo.base64, "image/jpeg");
-      await processImage(photo.base64, "image/jpeg", imagePath);
+      const deviceId = `device-${Date.now()}`;
+      const result = await scanBusinessCard(photo.base64, "image/jpeg", deviceId);
+      setPreview({ ...result, cardImagePath: imagePath } as PreviewData);
     } catch (err: any) {
       Alert.alert("Scan Error", err.message || "Failed to process card");
-    } finally {
-      setScanning(false);
-    }
-  };
-
-  const handlePickImage = async () => {
-    if (scanning) return;
-    setScanning(true);
-
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ["images"],
-        quality: 0.8,
-        base64: true,
-      });
-
-      if (result.canceled || !result.assets?.[0]?.base64) {
-        setScanning(false);
-        return;
-      }
-
-      const asset = result.assets[0];
-      const mimeType = asset.mimeType || "image/jpeg";
-      const base64 = asset.base64 || "";
-      if (!base64) {
-        Alert.alert("Error", "Could not read image data");
-        setScanning(false);
-        return;
-      }
-      const imagePath = saveBase64Image(base64, mimeType);
-      await processImage(base64, mimeType, imagePath);
-    } catch (err: any) {
-      Alert.alert("Import Error", err.message || "Failed to import image");
     } finally {
       setScanning(false);
     }
@@ -173,13 +135,8 @@ export default function ScanScreen({ navigation }: Props) {
                 const value = preview.contact[field];
                 if (!value) return null;
                 const labels: Record<string, string> = {
-                  name: "Name",
-                  title: "Title",
-                  company: "Company",
-                  phone: "Phone",
-                  email: "Email",
-                  website: "Website",
-                  address: "Address",
+                  name: "Name", title: "Title", company: "Company",
+                  phone: "Phone", email: "Email", website: "Website", address: "Address",
                 };
                 return (
                   <View key={field} style={styles.fieldRow}>
@@ -191,25 +148,11 @@ export default function ScanScreen({ navigation }: Props) {
             )}
           </View>
 
-          <Text style={styles.rawTextLabel}>Raw OCR Text:</Text>
-          <Text style={styles.rawText}>{preview.rawText}</Text>
-
           <View style={styles.previewActions}>
-            <TouchableOpacity
-              style={[styles.button, styles.saveButton]}
-              onPress={handleSave}
-              disabled={saving}
-            >
-              {saving ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.buttonText}>Save Contact</Text>
-              )}
+            <TouchableOpacity style={[styles.button, styles.saveButton]} onPress={handleSave} disabled={saving}>
+              {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Save Contact</Text>}
             </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.button, styles.retakeButton]}
-              onPress={() => setPreview(null)}
-            >
+            <TouchableOpacity style={[styles.button, styles.retakeButton]} onPress={() => setPreview(null)}>
               <Text style={styles.buttonText}>Retake</Text>
             </TouchableOpacity>
           </View>
@@ -229,7 +172,10 @@ export default function ScanScreen({ navigation }: Props) {
       </View>
 
       <View style={styles.controlsBar}>
-        <TouchableOpacity style={styles.controlBtn} onPress={() => setFacing(facing === "back" ? "front" : "back")}>
+        <TouchableOpacity
+          style={styles.controlBtn}
+          onPress={() => setFacing(facing === "back" ? "front" : "back")}
+        >
           <Text style={styles.controlIcon}>🔄</Text>
           <Text style={styles.controlLabel}>Flip</Text>
         </TouchableOpacity>
@@ -246,14 +192,7 @@ export default function ScanScreen({ navigation }: Props) {
           )}
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.controlBtn, styles.galleryBtn]}
-          onPress={handlePickImage}
-          disabled={scanning}
-        >
-          <Text style={styles.controlIcon}>🖼</Text>
-          <Text style={[styles.controlLabel, styles.galleryLabel]}>Gallery</Text>
-        </TouchableOpacity>
+        <View style={{ width: 70 }} />
       </View>
     </SafeAreaView>
   );
@@ -275,7 +214,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#6c5ce7",
     borderRadius: 12,
-    backgroundColor: "transparent",
   },
   controlsBar: {
     height: 120,
@@ -297,12 +235,6 @@ const styles = StyleSheet.create({
   },
   controlIcon: { fontSize: 24, marginBottom: 2 },
   controlLabel: { color: "#888", fontSize: 11, fontWeight: "600" },
-  galleryBtn: {
-    backgroundColor: "#1e1e2e",
-    borderWidth: 2,
-    borderColor: "#6c5ce7",
-  },
-  galleryLabel: { color: "#6c5ce7" },
   shutterBtn: {
     width: 72,
     height: 72,
@@ -322,33 +254,22 @@ const styles = StyleSheet.create({
   },
   title: { color: "#fff", fontSize: 22, fontWeight: "700", marginBottom: 8, textAlign: "center" },
   subtitle: { color: "#888", fontSize: 14, textAlign: "center", marginBottom: 24 },
+  grantBtn: {
+    backgroundColor: "#6c5ce7",
+    borderRadius: 12,
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+  },
+  grantBtnText: { color: "#fff", fontWeight: "600", fontSize: 16 },
   previewContainer: { padding: 20, paddingBottom: 60 },
   sectionTitle: { color: "#fff", fontSize: 22, fontWeight: "700", marginBottom: 4 },
-  confidence: {
-    color: "#6c5ce7",
-    fontSize: 13,
-    marginBottom: 20,
-    textTransform: "uppercase",
-    fontWeight: "600",
-  },
+  confidence: { color: "#6c5ce7", fontSize: 13, marginBottom: 20, textTransform: "uppercase", fontWeight: "600" },
   fieldGroup: { gap: 12, marginBottom: 24 },
-  fieldRow: {
-    backgroundColor: "#1e1e2e",
-    borderRadius: 10,
-    padding: 14,
-  },
+  fieldRow: { backgroundColor: "#1e1e2e", borderRadius: 10, padding: 14 },
   fieldLabel: { color: "#6c5ce7", fontSize: 11, fontWeight: "600", textTransform: "uppercase", marginBottom: 4 },
   fieldValue: { color: "#fff", fontSize: 16 },
-  rawTextLabel: { color: "#888", fontSize: 12, fontWeight: "600", marginBottom: 4 },
-  rawText: { color: "#555", fontSize: 12, backgroundColor: "#1a1a2e", borderRadius: 8, padding: 12, marginBottom: 24 },
   previewActions: { flexDirection: "row", gap: 12, marginTop: 8 },
-  button: {
-    flex: 1,
-    padding: 16,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  button: { flex: 1, padding: 16, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   saveButton: { backgroundColor: "#6c5ce7" },
   retakeButton: { backgroundColor: "#444" },
   buttonText: { color: "#fff", fontWeight: "600", fontSize: 16 },

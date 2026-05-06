@@ -9,9 +9,10 @@ import {
   Image,
   Linking,
   Share,
+  TextInput,
 } from "react-native";
 import * as Contacts from "expo-contacts";
-import { getContactById } from "../db/database";
+import { getContactById, updateContact } from "../db/database";
 import { generateVCard } from "../utils/api";
 import QRCode from "react-native-qrcode-svg";
 
@@ -39,8 +40,11 @@ interface Props {
 export default function ContactDetailScreen({ navigation, route }: Props) {
   const { contactId } = route.params;
   const [contact, setContact] = useState<ContactData | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [editFields, setEditFields] = useState<Record<string, string>>({});
   const [showQR, setShowQR] = useState(false);
   const [showAppQR, setShowAppQR] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     loadContact();
@@ -49,7 +53,7 @@ export default function ContactDetailScreen({ navigation, route }: Props) {
   const loadContact = async () => {
     const result = await getContactById(contactId);
     if (result) {
-      setContact({
+      const c: ContactData = {
         id: result.id,
         name: result.name,
         title: result.title,
@@ -61,6 +65,16 @@ export default function ContactDetailScreen({ navigation, route }: Props) {
         cardImagePath: result.card_image_path,
         createdAt: result.created_at,
         updatedAt: result.updated_at,
+      };
+      setContact(c);
+      setEditFields({
+        name: c.name || "",
+        title: c.title || "",
+        company: c.company || "",
+        phone: c.phone || "",
+        email: c.email || "",
+        website: c.website || "",
+        address: c.address || "",
       });
     }
   };
@@ -118,7 +132,6 @@ export default function ContactDetailScreen({ navigation, route }: Props) {
       Alert.alert("Permission Denied", "Enable contacts permission to save");
       return;
     }
-
     const newContact: Contacts.Contact = {
       contactType: Contacts.ContactTypes.Person,
       name: contact.name || contact.company || "",
@@ -126,15 +139,10 @@ export default function ContactDetailScreen({ navigation, route }: Props) {
       lastName: contact.name?.split(" ").slice(1).join(" ") || "",
       company: contact.company || undefined,
       jobTitle: contact.title || undefined,
-      phoneNumbers: contact.phone
-        ? [{ label: "work", number: contact.phone, id: "1" }]
-        : undefined,
-      emails: contact.email
-        ? [{ label: "work", email: contact.email, id: "1" }]
-        : undefined,
+      phoneNumbers: contact.phone ? [{ label: "work", number: contact.phone, id: "1" }] : undefined,
+      emails: contact.email ? [{ label: "work", email: contact.email, id: "1" }] : undefined,
       note: contact.address || undefined,
     };
-
     try {
       await Contacts.addContactAsync(newContact);
       Alert.alert("Saved", "Contact added to your phone");
@@ -145,21 +153,41 @@ export default function ContactDetailScreen({ navigation, route }: Props) {
 
   const handleShare = async () => {
     try {
-      await Share.share({
-        message: vCardData,
-        title: displayName,
-      });
+      await Share.share({ message: vCardData, title: displayName });
     } catch {}
   };
 
-  const fields = [
-    { label: "Phone", value: contact.phone, icon: "📞", action: handleCall },
-    { label: "Email", value: contact.email, icon: "✉️", action: handleEmail },
-    { label: "Website", value: contact.website, icon: "🌐", action: handleWebsite },
-    { label: "Address", value: contact.address, icon: "📍", action: handleAddress },
-    { label: "Title", value: contact.title, icon: "💼", action: undefined },
-    { label: "Company", value: contact.company, icon: "🏢", action: undefined },
-  ].filter((f) => f.value);
+  const handleSaveEdits = async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      await updateContact(contact.id, {
+        name: editFields.name || null,
+        title: editFields.title || null,
+        company: editFields.company || null,
+        phone: editFields.phone || null,
+        email: editFields.email || null,
+        website: editFields.website || null,
+        address: editFields.address || null,
+      });
+      await loadContact();
+      setEditing(false);
+    } catch (err: any) {
+      Alert.alert("Error", err.message || "Failed to save changes");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const fieldDefs = [
+    { key: "name", label: "Name", icon: "👤", action: undefined as (() => void) | undefined },
+    { key: "title", label: "Title", icon: "💼", action: undefined },
+    { key: "company", label: "Company", icon: "🏢", action: undefined },
+    { key: "phone", label: "Phone", icon: "📞", action: editing ? undefined : handleCall },
+    { key: "email", label: "Email", icon: "✉️", action: editing ? undefined : handleEmail },
+    { key: "website", label: "Website", icon: "🌐", action: editing ? undefined : handleWebsite },
+    { key: "address", label: "Address", icon: "📍", action: editing ? undefined : handleAddress },
+  ];
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -171,10 +199,44 @@ export default function ContactDetailScreen({ navigation, route }: Props) {
         {contact.name && contact.company && (
           <Text style={styles.companyText}>{contact.company}</Text>
         )}
-        {contact.title && (
-          <Text style={styles.titleText}>{contact.title}</Text>
-        )}
+        {contact.title && <Text style={styles.titleText}>{contact.title}</Text>}
       </View>
+
+      <TouchableOpacity
+        style={styles.editToggle}
+        onPress={() => {
+          if (editing) {
+            handleSaveEdits();
+          } else {
+            setEditing(true);
+          }
+        }}
+        disabled={saving}
+      >
+        <Text style={styles.editToggleText}>
+          {editing ? (saving ? "Saving..." : "✓ Save Changes") : "✏️ Edit Contact"}
+        </Text>
+      </TouchableOpacity>
+
+      {editing && (
+        <TouchableOpacity
+          style={styles.cancelEditBtn}
+          onPress={() => {
+            setEditFields({
+              name: contact.name || "",
+              title: contact.title || "",
+              company: contact.company || "",
+              phone: contact.phone || "",
+              email: contact.email || "",
+              website: contact.website || "",
+              address: contact.address || "",
+            });
+            setEditing(false);
+          }}
+        >
+          <Text style={styles.cancelEditText}>Cancel</Text>
+        </TouchableOpacity>
+      )}
 
       {contact.cardImagePath && (
         <View style={styles.cardImageContainer}>
@@ -188,28 +250,54 @@ export default function ContactDetailScreen({ navigation, route }: Props) {
       )}
 
       <View style={styles.fieldsContainer}>
-        {fields.map((field) => (
-          <TouchableOpacity
-            key={field.label}
-            style={styles.fieldCard}
-            onPress={field.action}
-            activeOpacity={field.action ? 0.6 : 1}
-          >
-            <Text style={styles.fieldIcon}>{field.icon}</Text>
-            <View style={styles.fieldContent}>
-              <Text style={styles.fieldLabel}>{field.label}</Text>
-              <Text
-                style={[
-                  styles.fieldValue,
-                  field.action && styles.fieldValueLinked,
-                ]}
-              >
-                {field.value}
-              </Text>
-            </View>
-            {field.action && <Text style={styles.fieldArrow}>›</Text>}
-          </TouchableOpacity>
-        ))}
+        {fieldDefs.map((field) => {
+          const value = (contact as any)[field.key];
+          if (!value && !editing) return null;
+
+          if (editing) {
+            return (
+              <View key={field.key} style={styles.editFieldCard}>
+                <Text style={styles.fieldIcon}>{field.icon}</Text>
+                <View style={styles.editFieldContent}>
+                  <Text style={styles.fieldLabel}>{field.label}</Text>
+                  <TextInput
+                    style={styles.editInput}
+                    value={editFields[field.key] || ""}
+                    onChangeText={(text) =>
+                      setEditFields({ ...editFields, [field.key]: text })
+                    }
+                    placeholder={field.label}
+                    placeholderTextColor="#555"
+                    autoCapitalize={field.key === "email" || field.key === "website" ? "none" : "words"}
+                    keyboardType={
+                      field.key === "email" ? "email-address" :
+                      field.key === "phone" ? "phone-pad" :
+                      field.key === "website" ? "url" : "default"
+                    }
+                  />
+                </View>
+              </View>
+            );
+          }
+
+          return (
+            <TouchableOpacity
+              key={field.key}
+              style={styles.fieldCard}
+              onPress={field.action}
+              activeOpacity={field.action ? 0.6 : 1}
+            >
+              <Text style={styles.fieldIcon}>{field.icon}</Text>
+              <View style={styles.fieldContent}>
+                <Text style={styles.fieldLabel}>{field.label}</Text>
+                <Text style={[styles.fieldValue, field.action && styles.fieldValueLinked]}>
+                  {value}
+                </Text>
+              </View>
+              {field.action && <Text style={styles.fieldArrow}>›</Text>}
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       <TouchableOpacity
@@ -224,12 +312,7 @@ export default function ContactDetailScreen({ navigation, route }: Props) {
       {showQR && (
         <View style={styles.qrContainer}>
           <Text style={styles.qrTitle}>Share Contact</Text>
-          <QRCode
-            value={vCardData}
-            size={220}
-            color="#1a1a2e"
-            backgroundColor="#fff"
-          />
+          <QRCode value={vCardData} size={220} color="#1a1a2e" backgroundColor="#fff" />
           <Text style={styles.qrHint}>
             Other CardKeeper users can scan this to import this contact
           </Text>
@@ -254,18 +337,11 @@ export default function ContactDetailScreen({ navigation, route }: Props) {
       {showAppQR && (
         <View style={styles.qrContainer}>
           <Text style={styles.qrTitle}>Get CardKeeper</Text>
-          <QRCode
-            value={APP_DOWNLOAD_URL}
-            size={220}
-            color="#6c5ce7"
-            backgroundColor="#fff"
-          />
-          <Text style={styles.qrHint}>
-            Scan to download CardKeeper
-          </Text>
+          <QRCode value={APP_DOWNLOAD_URL} size={220} color="#6c5ce7" backgroundColor="#fff" />
+          <Text style={styles.qrHint}>Scan to download CardKeeper</Text>
           <TouchableOpacity
             style={styles.shareQRButton}
-            onPress={() => Share.share({ message: `Get CardKeeper - Business Card Scanner & QR Contact Exchange: ${APP_DOWNLOAD_URL}` })}
+            onPress={() => Share.share({ message: `Get CardKeeper: ${APP_DOWNLOAD_URL}` })}
           >
             <Text style={styles.shareQRButtonText}>Share Download Link</Text>
           </TouchableOpacity>
@@ -276,10 +352,7 @@ export default function ContactDetailScreen({ navigation, route }: Props) {
         <TouchableOpacity style={styles.actionButton} onPress={handleSaveToDevice}>
           <Text style={styles.actionButtonText}>Save to Phone</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.actionButton, styles.actionSecondary]}
-          onPress={handleShare}
-        >
+        <TouchableOpacity style={[styles.actionButton, styles.actionSecondary]} onPress={handleShare}>
           <Text style={styles.actionButtonText}>Share vCard</Text>
         </TouchableOpacity>
       </View>
@@ -290,7 +363,7 @@ export default function ContactDetailScreen({ navigation, route }: Props) {
           style={styles.footerLogo}
           resizeMode="contain"
         />
-        <Text style={styles.footerText}>Powered by TrueFlow</Text>
+        <Text style={styles.footerText}>Powered by TrueFlow Business Automations</Text>
       </View>
     </ScrollView>
   );
@@ -314,20 +387,25 @@ const styles = StyleSheet.create({
   name: { color: "#fff", fontSize: 24, fontWeight: "700" },
   titleText: { color: "#6c5ce7", fontSize: 14, marginTop: 4 },
   companyText: { color: "#888", fontSize: 15, marginTop: 2, fontWeight: "500" },
-  cardImageContainer: { marginBottom: 24 },
-  sectionLabel: {
-    color: "#6c5ce7",
-    fontSize: 11,
-    fontWeight: "600",
-    textTransform: "uppercase",
-    marginBottom: 8,
-  },
-  cardImage: {
-    width: "100%",
-    height: 180,
+  editToggle: {
+    backgroundColor: "#6c5ce7",
     borderRadius: 12,
-    backgroundColor: "#1e1e2e",
+    padding: 14,
+    alignItems: "center",
+    marginBottom: 16,
   },
+  editToggleText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+  cancelEditBtn: {
+    backgroundColor: "#2a2a4a",
+    borderRadius: 12,
+    padding: 12,
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  cancelEditText: { color: "#888", fontWeight: "600", fontSize: 14 },
+  cardImageContainer: { marginBottom: 24 },
+  sectionLabel: { color: "#6c5ce7", fontSize: 11, fontWeight: "600", textTransform: "uppercase", marginBottom: 8 },
+  cardImage: { width: "100%", height: 180, borderRadius: 12, backgroundColor: "#1e1e2e" },
   fieldsContainer: { gap: 8, marginBottom: 24 },
   fieldCard: {
     flexDirection: "row",
@@ -337,18 +415,30 @@ const styles = StyleSheet.create({
     padding: 14,
     gap: 12,
   },
-  fieldIcon: { fontSize: 18 },
+  fieldIcon: { fontSize: 20, width: 28 },
   fieldContent: { flex: 1 },
-  fieldLabel: {
-    color: "#6c5ce7",
-    fontSize: 11,
-    fontWeight: "600",
-    textTransform: "uppercase",
-    marginBottom: 2,
-  },
+  fieldLabel: { color: "#6c5ce7", fontSize: 11, fontWeight: "600", textTransform: "uppercase", marginBottom: 2 },
   fieldValue: { color: "#ccc", fontSize: 15 },
   fieldValueLinked: { color: "#fff" },
   fieldArrow: { color: "#6c5ce7", fontSize: 22, fontWeight: "300" },
+  editFieldCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#1e1e2e",
+    borderRadius: 10,
+    padding: 14,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: "#6c5ce7",
+  },
+  editFieldContent: { flex: 1 },
+  editInput: {
+    color: "#fff",
+    fontSize: 15,
+    paddingVertical: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: "#6c5ce7",
+  },
   qrToggle: {
     backgroundColor: "#1e1e2e",
     borderRadius: 10,
@@ -356,11 +446,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 12,
   },
-  appQrToggle: {
-    borderWidth: 1,
-    borderColor: "#6c5ce7",
-    borderStyle: "dashed",
-  },
+  appQrToggle: { borderWidth: 1, borderColor: "#6c5ce7", borderStyle: "dashed" },
   qrToggleText: { color: "#6c5ce7", fontWeight: "600", fontSize: 15 },
   qrContainer: {
     alignItems: "center",
@@ -369,12 +455,7 @@ const styles = StyleSheet.create({
     padding: 24,
     marginBottom: 16,
   },
-  qrTitle: {
-    color: "#1a1a2e",
-    fontSize: 16,
-    fontWeight: "700",
-    marginBottom: 16,
-  },
+  qrTitle: { color: "#1a1a2e", fontSize: 16, fontWeight: "700", marginBottom: 16 },
   qrHint: { color: "#888", fontSize: 12, marginTop: 12, textAlign: "center" },
   shareQRButton: {
     marginTop: 12,
@@ -402,8 +483,8 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     borderTopColor: "#1e1e2e",
     borderTopWidth: 1,
-    gap: 8,
+    gap: 10,
   },
-  footerLogo: { width: 20, height: 20 },
-  footerText: { color: "#555", fontSize: 11, fontWeight: "500" },
+  footerLogo: { width: 50, height: 50 },
+  footerText: { color: "#555", fontSize: 12, fontWeight: "500", flex: 1 },
 });

@@ -2,7 +2,9 @@ import React, { useState } from "react";
 import { View, StyleSheet, TextInput } from "react-native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createStackNavigator } from "@react-navigation/stack";
+import { Ionicons } from "@expo/vector-icons";
 import ScanScreen from "../screens/ScanScreen";
+import GalleryScreen from "../screens/GalleryScreen";
 import QRImportScreen from "../screens/QRImportScreen";
 import ContactDetailScreen from "../screens/ContactDetailScreen";
 import ContactList from "../components/ContactList";
@@ -45,13 +47,14 @@ export default function AppNavigator() {
         tabBarStyle: {
           backgroundColor: "#0a0a1a",
           borderTopColor: "#1e1e2e",
-          height: 70,
-          paddingBottom: 10,
-          paddingTop: 6,
+          height: 80,
+          paddingBottom: 16,
+          paddingTop: 8,
         },
         tabBarActiveTintColor: "#6c5ce7",
         tabBarInactiveTintColor: "#555",
-        tabBarLabelStyle: { fontSize: 11, fontWeight: "600" },
+        tabBarLabelStyle: { fontSize: 12, fontWeight: "600" },
+        tabBarIconStyle: { marginTop: 4 },
       })}
     >
       <Tab.Screen
@@ -59,8 +62,8 @@ export default function AppNavigator() {
         component={ContactsStack}
         options={{
           tabBarLabel: "Contacts",
-          tabBarIcon: ({ color }) => (
-            <Text style={{ fontSize: 22, color }}>📇</Text>
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="people" size={28} color={color} />
           ),
         }}
       />
@@ -69,8 +72,18 @@ export default function AppNavigator() {
         component={ScanScreen}
         options={{
           tabBarLabel: "Scan",
-          tabBarIcon: ({ color }) => (
-            <Text style={{ fontSize: 22, color }}>📸</Text>
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="camera" size={28} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Gallery"
+        component={GalleryScreen}
+        options={{
+          tabBarLabel: "Gallery",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="images" size={28} color={color} />
           ),
         }}
       />
@@ -78,17 +91,15 @@ export default function AppNavigator() {
         name="QR Import"
         component={QRImportScreen}
         options={{
-          tabBarLabel: "QR Import",
-          tabBarIcon: ({ color }) => (
-            <Text style={{ fontSize: 22, color }}>📲</Text>
+          tabBarLabel: "QR Scan",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="qr-code" size={28} color={color} />
           ),
         }}
       />
     </Tab.Navigator>
   );
 }
-
-import { Text } from "react-native";
 
 const styles = StyleSheet.create({
   tabContainer: { flex: 1, backgroundColor: "#0a0a1a" },
