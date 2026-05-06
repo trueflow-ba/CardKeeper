@@ -248,6 +248,7 @@ export default function ScanScreen({ navigation }: Props) {
           onPress={handlePickImage}
           disabled={scanning}
         >
+          <Text style={styles.galleryIcon}>🖼</Text>
           <Text style={styles.galleryText}>Gallery</Text>
         </TouchableOpacity>
       </View>
@@ -298,14 +299,22 @@ const styles = StyleSheet.create({
     borderRadius: 29,
     backgroundColor: "#6c5ce7",
   },
-  flipButton: { padding: 12 },
+  flipButton: {
+    padding: 12,
+    alignItems: "center",
+  },
   flipText: { color: "#fff", fontSize: 14 },
   galleryButton: {
-    padding: 12,
+    padding: 10,
     backgroundColor: "#1e1e2e",
-    borderRadius: 8,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: "#6c5ce7",
+    alignItems: "center",
+    minWidth: 70,
   },
-  galleryText: { color: "#6c5ce7", fontSize: 14, fontWeight: "600" },
+  galleryIcon: { fontSize: 22, marginBottom: 2 },
+  galleryText: { color: "#6c5ce7", fontSize: 12, fontWeight: "700" },
   previewContainer: { padding: 20, paddingBottom: 60 },
   sectionTitle: { color: "#fff", fontSize: 22, fontWeight: "700", marginBottom: 4 },
   confidence: {
