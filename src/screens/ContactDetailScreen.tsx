@@ -73,6 +73,13 @@ export default function ContactDetailScreen({ navigation, route }: Props) {
     );
   }
 
+  const displayName = contact.name || contact.company || "Unknown";
+  const avatarInitials = contact.name
+    ? contact.name.trim().split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase()
+    : contact.company
+    ? contact.company.trim().split(/\s+/).filter((w) => !["the","and","of","inc","llc","ltd","corp","co"].includes(w.toLowerCase().replace(".",""))).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || contact.company[0].toUpperCase()
+    : "?";
+
   const vCardData = generateVCard({
     name: contact.name,
     title: contact.title,
@@ -114,8 +121,8 @@ export default function ContactDetailScreen({ navigation, route }: Props) {
 
     const newContact: Contacts.Contact = {
       contactType: Contacts.ContactTypes.Person,
-      name: contact.name || "",
-      firstName: contact.name?.split(" ")[0] || "",
+      name: contact.name || contact.company || "",
+      firstName: contact.name?.split(" ")[0] || contact.company?.split(" ")[0] || "",
       lastName: contact.name?.split(" ").slice(1).join(" ") || "",
       company: contact.company || undefined,
       jobTitle: contact.title || undefined,
@@ -140,7 +147,7 @@ export default function ContactDetailScreen({ navigation, route }: Props) {
     try {
       await Share.share({
         message: vCardData,
-        title: contact.name || "Business Card",
+        title: displayName,
       });
     } catch {}
   };
@@ -158,22 +165,14 @@ export default function ContactDetailScreen({ navigation, route }: Props) {
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
         <View style={styles.avatarLarge}>
-          <Text style={styles.avatarLargeText}>
-            {contact.name
-              ? contact.name
-                  .trim()
-                  .split(/\s+/)
-                  .map((w) => w[0])
-                  .join("")
-                  .slice(0, 2)
-                  .toUpperCase()
-              : "?"}
-          </Text>
+          <Text style={styles.avatarLargeText}>{avatarInitials}</Text>
         </View>
-        <Text style={styles.name}>{contact.name || "Unknown"}</Text>
-        {contact.title && <Text style={styles.titleText}>{contact.title}</Text>}
-        {contact.company && (
+        <Text style={styles.name}>{displayName}</Text>
+        {contact.name && contact.company && (
           <Text style={styles.companyText}>{contact.company}</Text>
+        )}
+        {contact.title && (
+          <Text style={styles.titleText}>{contact.title}</Text>
         )}
       </View>
 
@@ -236,7 +235,7 @@ export default function ContactDetailScreen({ navigation, route }: Props) {
           </Text>
           <TouchableOpacity
             style={styles.shareQRButton}
-            onPress={() => Share.share({ message: `Scan this QR to add ${contact.name} to CardKeeper!`, url: vCardData })}
+            onPress={() => Share.share({ message: `Scan this QR to add ${displayName} to CardKeeper!`, url: vCardData })}
           >
             <Text style={styles.shareQRButtonText}>Share QR</Text>
           </TouchableOpacity>
@@ -284,6 +283,15 @@ export default function ContactDetailScreen({ navigation, route }: Props) {
           <Text style={styles.actionButtonText}>Share vCard</Text>
         </TouchableOpacity>
       </View>
+
+      <View style={styles.footer}>
+        <Image
+          source={require("../../assets/images/trueflow-logo.png")}
+          style={styles.footerLogo}
+          resizeMode="contain"
+        />
+        <Text style={styles.footerText}>Powered by TrueFlow</Text>
+      </View>
     </ScrollView>
   );
 }
@@ -305,7 +313,7 @@ const styles = StyleSheet.create({
   avatarLargeText: { color: "#fff", fontSize: 28, fontWeight: "700" },
   name: { color: "#fff", fontSize: 24, fontWeight: "700" },
   titleText: { color: "#6c5ce7", fontSize: 14, marginTop: 4 },
-  companyText: { color: "#888", fontSize: 14, marginTop: 2 },
+  companyText: { color: "#888", fontSize: 15, marginTop: 2, fontWeight: "500" },
   cardImageContainer: { marginBottom: 24 },
   sectionLabel: {
     color: "#6c5ce7",
@@ -386,4 +394,16 @@ const styles = StyleSheet.create({
   },
   actionSecondary: { backgroundColor: "#2a2a4a" },
   actionButtonText: { color: "#fff", fontWeight: "600", fontSize: 15 },
+  footer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 32,
+    paddingTop: 16,
+    borderTopColor: "#1e1e2e",
+    borderTopWidth: 1,
+    gap: 8,
+  },
+  footerLogo: { width: 20, height: 20 },
+  footerText: { color: "#555", fontSize: 11, fontWeight: "500" },
 });
