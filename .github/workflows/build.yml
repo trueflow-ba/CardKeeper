@@ -1,8 +1,6 @@
 name: EAS Build
 
 on:
-  push:
-    branches: [master]
   workflow_dispatch:
     inputs:
       profile:
@@ -22,9 +20,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - uses: expo-github-app/actions/setup-expo-app@v1
-        with:
-          cache: true
-      - run: npx eas-cli build --platform android --profile ${{ github.event.inputs.profile || 'production' }} --non-interactive --no-wait
+          cache: 'npm'
+      - name: Setup EAS
+        run: npm install -g eas-cli
+      - name: Build APK
+        run: eas build --platform android --profile ${{ github.event.inputs.profile || 'production' }} --non-interactive --no-wait
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
