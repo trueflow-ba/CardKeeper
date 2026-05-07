@@ -1,0 +1,42 @@
+name: Build iOS
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prebuild iOS project
+        run: npx expo prebuild --platform ios --clean
+
+      - name: Build iOS (no signing, simulator only)
+        working-directory: ios
+        run: |
+          xcodebuild \
+            -workspace CardKeeper.xcworkspace \
+            -scheme CardKeeper \
+            -sdk iphonesimulator \
+            -configuration Debug \
+            -derivedDataPath build \
+            build \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Upload iOS build
+        uses: actions/upload-artifact@v4
+        with:
+          name: CardKeeper-ios-simulator
+          path: ios/build/Build/Products/Debug-iphonesimulator/*.app
+          retention-days: 7

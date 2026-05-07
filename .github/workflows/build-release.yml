@@ -1,0 +1,67 @@
+name: Build Android Release APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version name (e.g. 1.0.3)'
+        required: false
+        default: '1.0.3'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: 17
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate keystore
+        run: |
+          keytool -genkeypair -v \
+            -keystore cardkeeper.keystore \
+            -alias cardkeeper \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass ${{ secrets.KEYSTORE_PASSWORD }} \
+            -keypass ${{ secrets.KEYSTORE_PASSWORD }} \
+            -dname "CN=CardKeeper, OU=TrueFlow, O=TrueFlow Business Automations, L=Atlanta, ST=GA, C=US"
+
+      - name: Prebuild native project
+        run: npx expo prebuild --platform android --clean
+
+      - name: Build release APK
+        working-directory: android
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: |
+          echo "storePassword=\$KEYSTORE_PASSWORD" >> local.properties
+          echo "keyPassword=\$KEYSTORE_PASSWORD" >> local.properties
+          echo "keyAlias=cardkeeper" >> local.properties
+          echo "storeFile=../cardkeeper.keystore" >> local.properties
+          ./gradlew assembleRelease
+
+      - name: Upload release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: CardKeeper-release-${{ github.event.inputs.version }}
+          path: android/app/build/outputs/apk/release/*.apk
+          retention-days: 90
