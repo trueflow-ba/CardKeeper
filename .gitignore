@@ -42,3 +42,5 @@ yarn-error.*
 cardkeeper.keystore
 android/
 ios/
+*.apk
+CardKeeper-debug/
