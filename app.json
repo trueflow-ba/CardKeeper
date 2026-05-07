@@ -2,11 +2,11 @@
   "expo": {
     "name": "CardKeeper",
     "slug": "CardKeeper",
-    "version": "1.1.0",
+    "version": "1.1.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -17,7 +17,8 @@
       "infoPlist": {
         "NSCameraUsageDescription": "CardKeeper needs camera access to scan business cards",
         "NSContactsUsageDescription": "CardKeeper needs contacts access to save scanned contacts to your phone"
-      }
+      },
+      "bundleIdentifier": "com.trueflow.cardkeeper"
     },
     "android": {
       "adaptiveIcon": {
@@ -30,17 +31,13 @@
         "android.permission.READ_CONTACTS",
         "android.permission.WRITE_CONTACTS"
       ],
-      "package": "com.anonymous.CardKeeper",
-      "versionCode": 100
-    },
-    "web": {
-      "favicon": "./assets/favicon.png"
+      "package": "com.trueflow.cardkeeper"
     },
     "plugins": [
       [
         "expo-camera",
         {
-          "cameraPermission": "CardKeeper needs camera access to scan business cards and QR codes"
+          "cameraPermission": "CardKeeper needs camera access to scan business cards"
         }
       ],
       [
@@ -48,8 +45,7 @@
         {
           "contactsPermission": "CardKeeper needs contacts access to save scanned contacts to your phone"
         }
-      ],
-      "expo-sqlite"
+      ]
     ],
     "extra": {
       "eas": {
