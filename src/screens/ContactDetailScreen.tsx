@@ -14,8 +14,8 @@ import {
   Dimensions,
   Animated,
 } from "react-native";
-import * as Contacts from "expo-contacts";
 import * as FileSystem from "expo-file-system";
+import * as Sharing from "expo-sharing";
 import { getContactById, updateContact, updateCardImageRotation } from "../db/database";
 import { getDisplayName, getInitials } from "../types";
 import { generateVCard } from "../utils/api";
@@ -281,90 +281,25 @@ export default function ContactDetailScreen({ navigation, route }: Props) {
 
   const handleSaveToDevice = async () => {
     try {
-      const { status } = await Contacts.requestPermissionsAsync();
-      if (status !== "granted") {
-        Alert.alert("Permission Denied", "Enable contacts permission in Settings to save");
-        return;
-      }
-
-      // First attempt: use expo-contacts addContactAsync
-      // On many devices this works fine. It only fails on Android when the
-      // default contacts account is set to a cloud account (Google/Samsung),
-      // because expo-contacts writes to the "local" account by default.
-      try {
-        const newContact: any = {
-          [Contacts.Fields.FirstName]: contact.firstName || contact.company || "Unknown",
-          [Contacts.Fields.LastName]: contact.lastName || "",
-          [Contacts.Fields.Company]: contact.company || "",
-          [Contacts.Fields.JobTitle]: contact.title || "",
-          [Contacts.Fields.PhoneNumbers]: [],
-          [Contacts.Fields.Emails]: [],
-          [Contacts.Fields.UrlAddresses]: [],
-        };
-
-        if (contact.phone) {
-          newContact[Contacts.Fields.PhoneNumbers].push({
-            label: "work",
-            number: contact.phone.replace(/^[A-Za-z]+[:.\s]*/i, "").trim(),
-          });
-        }
-        if (contact.phone2) {
-          const raw = contact.phone2;
-          const isCell = /cell|mobile/i.test(raw);
-          const digits = raw.replace(/^[A-Za-z]+[:.\s]*/i, "").trim();
-          newContact[Contacts.Fields.PhoneNumbers].push({
-            label: isCell ? "mobile" : "home",
-            number: digits,
-          });
-        }
-        if (contact.email) {
-          newContact[Contacts.Fields.Emails].push({ label: "work", email: contact.email });
-        }
-        if (contact.website) {
-          newContact[Contacts.Fields.UrlAddresses].push({ label: "homepage", url: contact.website });
-        }
-        if (contact.linkedin) {
-          const url = contact.linkedin.startsWith("http") ? contact.linkedin : `https://${contact.linkedin}`;
-          newContact[Contacts.Fields.UrlAddresses].push({ label: "linkedin", url });
-        }
-        if (contact.address) {
-          newContact[Contacts.Fields.Addresses] = [{ label: "work", street: contact.address }];
-        }
-
-        await Contacts.addContactAsync(newContact);
-        Alert.alert("Saved!", "Contact added to your phone contacts");
-        return;
-      } catch (directErr: any) {
-        // If the error is the cloud account issue, fall through to vCard approach
-        const errMsg = (directErr?.message || "").toLowerCase();
-        if (!errMsg.includes("local") && !errMsg.includes("sim") && !errMsg.includes("cloud")) {
-          // Some other error — show it
-          throw directErr;
-        }
-        console.log("addContactAsync hit cloud account restriction, falling back to vCard");
-      }
-
-      // Fallback for "Cannot add contacts to local/sim accounts when default is cloud":
-      // Write the vCard to a .vcf file and open it with the system contact handler.
-      // Android's native vCard import ALWAYS uses the default account.
       const fileName = `CardKeeper_${displayName.replace(/[^a-zA-Z0-9]/g, "_")}.vcf`;
       const filePath = `${FileSystem.cacheDirectory}${fileName}`;
-      await FileSystem.writeAsStringAsync(filePath, vCardData, {
-        encoding: FileSystem.Encoding.UTF8,
-      });
+      await FileSystem.writeAsStringAsync(filePath, vCardData);
 
-      const canOpen = await Linking.canOpenURL(filePath);
-      if (canOpen) {
-        await Linking.openURL(filePath);
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (isAvailable) {
+        await Sharing.shareAsync(filePath, {
+          mimeType: "text/vcard",
+          dialogTitle: `Save ${displayName} to contacts`,
+          UTI: "public.vcard",
+        });
       } else {
-        // Last resort: share the vCard so user can save it
         await Share.share({
           message: vCardData,
           title: displayName,
         });
         Alert.alert(
           "Save Manually",
-          "Your device blocked direct import. Share the vCard to your contacts app to save it."
+          "Share the vCard to your contacts app to save it."
         );
       }
     } catch (err: any) {
