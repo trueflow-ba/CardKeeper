@@ -54,6 +54,7 @@ export function generateVCard(contact: {
   linkedin: string | null;
   address: string | null;
 }): string {
+  const CRLF = "\r\n";
   const lines = ["BEGIN:VCARD", "VERSION:3.0"];
   if (contact.firstName || contact.lastName) {
     const fn = [contact.firstName, contact.lastName].filter(Boolean).join(" ");
@@ -79,7 +80,16 @@ export function generateVCard(contact: {
     const url = contact.linkedin.startsWith("http") ? contact.linkedin : `https://${contact.linkedin}`;
     lines.push(`X-SOCIALPROFILE;TYPE=linkedin:${url}`);
   }
-  if (contact.address) lines.push(`ADR;TYPE=WORK:;;${contact.address};;;;`);
+  if (contact.address) {
+    const parts = contact.address.split(",").map(s => s.trim());
+    const poBox = "";
+    const extAddr = parts[0] || "";
+    const city = parts[1] || "";
+    const state = parts[2] || "";
+    const zip = parts[3] || "";
+    const country = parts[4] || "";
+    lines.push(`ADR;TYPE=WORK:;${poBox};${extAddr};${city};${state};${zip};${country}`);
+  }
   lines.push("END:VCARD");
-  return lines.join("\n");
+  return lines.join(CRLF);
 }

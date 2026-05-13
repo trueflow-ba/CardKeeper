@@ -20,6 +20,7 @@ import { getContactById, updateContact, updateCardImageRotation } from "../db/da
 import { getDisplayName, getInitials } from "../types";
 import { generateVCard } from "../utils/api";
 import QRCode from "react-native-qrcode-svg";
+import * as IntentLauncher from "expo-intent-launcher";
 
 const APP_DOWNLOAD_URL = "https://mrjm.zo.space/cardkeeper";
 
@@ -238,69 +239,40 @@ export default function ContactDetailScreen({ navigation, route }: Props) {
     address: contact.address,
   });
 
-  const getAction = (key: FieldKey): (() => void) | undefined => {
-    if (editing) return undefined;
-    switch (key) {
-      case "phone":
-      case "phone2":
-        return () => {
-          const raw = (contact as any)[key] as string | null;
-          if (raw) {
-            const digits = raw.replace(/^[A-Za-z]+[:.\s]*/i, "").trim();
-            Linking.openURL(`tel:${digits}`);
-          }
-        };
-      case "email":
-        return () => { if (contact.email) Linking.openURL(`mailto:${contact.email}`); };
-      case "website":
-        return () => {
-          if (contact.website) {
-            let url = contact.website;
-            if (!url.startsWith("http")) url = `https://${url}`;
-            Linking.openURL(url);
-          }
-        };
-      case "linkedin":
-        return () => {
-          if (contact.linkedin) {
-            let url = contact.linkedin;
-            if (!url.startsWith("http")) url = `https://${url}`;
-            Linking.openURL(url);
-          }
-        };
-      case "address":
-        return () => {
-          if (contact.address) {
-            Linking.openURL(`https://maps.google.com/?q=${encodeURIComponent(contact.address!)}`);
-          }
-        };
-      default:
-        return undefined;
-    }
+  const writeVCardFile = async (): Promise<string> => {
+    const fileName = `CardKeeper_${displayName.replace(/[^a-zA-Z0-9]/g, "_")}.vcf`;
+    const filePath = `${FileSystem.cacheDirectory}${fileName}`;
+    await FileSystem.writeAsStringAsync(filePath, vCardData, {
+      encoding: FileSystem.Encoding.UTF8,
+    });
+    return filePath;
   };
 
   const handleSaveToDevice = async () => {
     try {
-      const fileName = `CardKeeper_${displayName.replace(/[^a-zA-Z0-9]/g, "_")}.vcf`;
-      const filePath = `${FileSystem.cacheDirectory}${fileName}`;
-      await FileSystem.writeAsStringAsync(filePath, vCardData);
+      const filePath = await writeVCardFile();
 
-      const isAvailable = await Sharing.isAvailableAsync();
-      if (isAvailable) {
-        await Sharing.shareAsync(filePath, {
-          mimeType: "text/vcard",
-          dialogTitle: `Save ${displayName} to contacts`,
-          UTI: "public.vcard",
+      // Try direct Android intent to open contacts app
+      try {
+        await IntentLauncher.startActivityAsync("android.intent.action.VIEW", {
+          data: filePath,
+          type: "text/vcard",
+          flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
         });
-      } else {
-        await Share.share({
-          message: vCardData,
-          title: displayName,
-        });
-        Alert.alert(
-          "Save Manually",
-          "Share the vCard to your contacts app to save it."
-        );
+      } catch (intentErr: any) {
+        // Fallback: use expo-sharing system sheet
+        console.warn("IntentLauncher failed, falling back to Sharing:", intentErr?.message);
+        const isAvailable = await Sharing.isAvailableAsync();
+        if (isAvailable) {
+          await Sharing.shareAsync(filePath, {
+            mimeType: "text/vcard",
+            dialogTitle: `Save ${displayName} to contacts`,
+            UTI: "public.vcard",
+          });
+        } else {
+          await Share.share({ message: vCardData, title: displayName });
+          Alert.alert("Save Manually", "Share the vCard text to your contacts app to save it.");
+        }
       }
     } catch (err: any) {
       console.error("Save contact error:", err);
@@ -313,8 +285,21 @@ export default function ContactDetailScreen({ navigation, route }: Props) {
 
   const handleShare = async () => {
     try {
-      await Share.share({ message: vCardData, title: displayName });
-    } catch {}
+      const filePath = await writeVCardFile();
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (isAvailable) {
+        await Sharing.shareAsync(filePath, {
+          mimeType: "text/vcard",
+          dialogTitle: `Share ${displayName}`,
+          UTI: "public.vcard",
+        });
+      } else {
+        await Share.share({ message: vCardData, title: displayName });
+      }
+    } catch (err: any) {
+      console.error("Share error:", err);
+      Alert.alert("Could Not Share", err?.message || "Unknown error");
+    }
   };
 
   const handleSaveEdits = async () => {
