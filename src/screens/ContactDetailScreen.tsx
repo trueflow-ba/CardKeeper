@@ -14,13 +14,14 @@ import {
   Dimensions,
   Animated,
 } from "react-native";
-import * as FileSystem from "expo-file-system";
+import { Paths, File, Directory } from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import { getContactById, updateContact, updateCardImageRotation } from "../db/database";
 import { getDisplayName, getInitials } from "../types";
 import { generateVCard } from "../utils/api";
 import QRCode from "react-native-qrcode-svg";
 import * as IntentLauncher from "expo-intent-launcher";
+import { Platform } from "react-native";
 
 const APP_DOWNLOAD_URL = "https://mrjm.zo.space/cardkeeper";
 
@@ -241,11 +242,13 @@ export default function ContactDetailScreen({ navigation, route }: Props) {
 
   const writeVCardFile = async (): Promise<string> => {
     const fileName = `CardKeeper_${displayName.replace(/[^a-zA-Z0-9]/g, "_")}.vcf`;
-    const filePath = `${FileSystem.cacheDirectory}${fileName}`;
-    await FileSystem.writeAsStringAsync(filePath, vCardData, {
-      encoding: FileSystem.Encoding.UTF8,
-    });
-    return filePath;
+    const cacheDir = Paths.cache;
+    if (!cacheDir.exists) {
+      cacheDir.create({ intermediates: true });
+    }
+    const file = new File(cacheDir, fileName);
+    file.write(vCardData, { encoding: "utf8" });
+    return file.uri;
   };
 
   const getAction = (key: FieldKey): (() => void) | undefined => {
@@ -291,29 +294,31 @@ export default function ContactDetailScreen({ navigation, route }: Props) {
 
   const handleSaveToDevice = async () => {
     try {
-      const filePath = await writeVCardFile();
+      const fileUri = await writeVCardFile();
 
-      // Try direct Android intent to open contacts app
-      try {
-        await IntentLauncher.startActivityAsync("android.intent.action.VIEW", {
-          data: filePath,
-          type: "text/vcard",
-          flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
-        });
-      } catch (intentErr: any) {
-        // Fallback: use expo-sharing system sheet
-        console.warn("IntentLauncher failed, falling back to Sharing:", intentErr?.message);
-        const isAvailable = await Sharing.isAvailableAsync();
-        if (isAvailable) {
-          await Sharing.shareAsync(filePath, {
-            mimeType: "text/vcard",
-            dialogTitle: `Save ${displayName} to contacts`,
-            UTI: "public.vcard",
+      if (Platform.OS === "android") {
+        try {
+          await IntentLauncher.startActivityAsync("android.intent.action.VIEW", {
+            data: fileUri,
+            type: "text/vcard",
+            flags: 1,
           });
-        } else {
-          await Share.share({ message: vCardData, title: displayName });
-          Alert.alert("Save Manually", "Share the vCard text to your contacts app to save it.");
+          return;
+        } catch (intentErr: any) {
+          console.warn("IntentLauncher failed, falling back to Sharing:", intentErr?.message);
         }
+      }
+
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (isAvailable) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: "text/vcard",
+          dialogTitle: `Save ${displayName} to contacts`,
+          UTI: "public.vcard",
+        });
+      } else {
+        await Share.share({ message: vCardData, title: displayName });
+        Alert.alert("Save Manually", "Share the vCard text to your contacts app to save it.");
       }
     } catch (err: any) {
       console.error("Save contact error:", err);
