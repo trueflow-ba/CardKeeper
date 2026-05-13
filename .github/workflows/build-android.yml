@@ -51,16 +51,25 @@ jobs:
 
       - name: Patch build.gradle for async-storage v3 local_repo
         run: |
-          BUILD_GRADLE="android/build.gradle"
-          # Insert async-storage local_repo maven repo before google() in allprojects.repositories
-          sed -i '/allprojects {/,/}/ {
-            /repositories {/a\
-            maven {\
-                url("${rootProject.projectDir}/../node_modules/@react-native-async-storage/async-storage/local_repo")\
-            }
-          }' "$BUILD_GRADLE"
-          echo "Patched build.gradle:"
-          cat "$BUILD_GRADLE"
+          cat > /tmp/patch_gradle.py << 'PYEOF'
+          path = 'android/build.gradle'
+          with open(path, 'r') as f:
+              content = f.read()
+          maven_line = "maven { url '${rootProject.projectDir}/../node_modules/@react-native-async-storage/async-storage/android/local_repo' }"
+          if maven_line not in content:
+              content = content.replace(
+                  'allprojects {\n  repositories {',
+                  'allprojects {\n  repositories {\n    ' + maven_line
+              )
+              with open(path, 'w') as f:
+                  f.write(content)
+              print('Patched build.gradle successfully')
+          else:
+              print('Maven repo already present')
+          PYEOF
+          python3 /tmp/patch_gradle.py
+          echo '--- Verifying build.gradle ---'
+          cat android/build.gradle
 
       - name: Decode keystore
         run: |
