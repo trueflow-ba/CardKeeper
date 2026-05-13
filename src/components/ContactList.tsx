@@ -38,6 +38,7 @@ export default function ContactList({ navigation, searchQuery }: Props) {
           website: r.website,
           address: r.address,
           cardImagePath: r.card_image_path,
+          cardImageRotation: r.card_image_rotation || 0,
           createdAt: r.created_at,
           updatedAt: r.updated_at,
         }))
@@ -121,11 +122,20 @@ export default function ContactList({ navigation, searchQuery }: Props) {
           <Text style={styles.subtitleLight}>{item.title}</Text>
         )}
       </View>
-      {item.phone && (
+      {item.cardImagePath ? (
+        <Image
+          source={{ uri: item.cardImagePath }}
+          style={[
+            styles.thumbnail,
+            { transform: [{ rotate: `${item.cardImageRotation}deg` }] },
+          ]}
+          resizeMode="contain"
+        />
+      ) : item.phone ? (
         <View style={styles.badge}>
           <Text style={styles.badgeText}>📞</Text>
         </View>
-      )}
+      ) : null}
     </TouchableOpacity>
   );
 
@@ -188,6 +198,12 @@ const styles = StyleSheet.create({
   subtitleLight: { color: "#888", fontSize: 13, marginTop: 2 },
   badge: { padding: 4 },
   badgeText: { fontSize: 16 },
+  thumbnail: {
+    width: 40,
+    height: 40,
+    borderRadius: 6,
+    backgroundColor: "#2a2a4a",
+  },
   empty: { alignItems: "center", marginTop: 80 },
   emptyText: { color: "#888", fontSize: 18, fontWeight: "600" },
   emptySubtext: { color: "#555", fontSize: 14, marginTop: 8, textAlign: "center" },

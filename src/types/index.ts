@@ -8,6 +8,7 @@ export interface Contact {
   website: string | null;
   address: string | null;
   cardImagePath: string | null;
+  cardImageRotation: number;
   createdAt: number;
   updatedAt: number;
 }

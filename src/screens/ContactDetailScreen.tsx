@@ -15,7 +15,7 @@ import {
   Dimensions,
 } from "react-native";
 import * as Contacts from "expo-contacts";
-import { getContactById, updateContact } from "../db/database";
+import { getContactById, updateContact, updateCardImageRotation } from "../db/database";
 import { generateVCard } from "../utils/api";
 import QRCode from "react-native-qrcode-svg";
 
@@ -31,6 +31,7 @@ interface ContactData {
   website: string | null;
   address: string | null;
   cardImagePath: string | null;
+  cardImageRotation: number;
   createdAt: number;
   updatedAt: number;
 }
@@ -68,10 +69,12 @@ export default function ContactDetailScreen({ navigation, route }: Props) {
         website: result.website,
         address: result.address,
         cardImagePath: result.card_image_path,
+        cardImageRotation: result.card_image_rotation || 0,
         createdAt: result.created_at,
         updatedAt: result.updated_at,
       };
       setContact(c);
+      setImageRotation(c.cardImageRotation);
       setEditFields({
         name: c.name || "",
         title: c.title || "",
@@ -201,8 +204,17 @@ export default function ContactDetailScreen({ navigation, route }: Props) {
     }
   };
 
-  const handleRotateImage = () => {
-    setImageRotation((prev) => (prev + 90) % 360);
+  const handleRotateImage = async () => {
+    const newRotation = (imageRotation + 90) % 360;
+    setImageRotation(newRotation);
+    // Persist rotation to database
+    if (contact) {
+      try {
+        await updateCardImageRotation(contact.id, newRotation);
+      } catch (e) {
+        console.warn("Failed to save rotation:", e);
+      }
+    }
   };
 
   const fieldDefs = [
@@ -281,7 +293,10 @@ export default function ContactDetailScreen({ navigation, route }: Props) {
             >
               <Image
                 source={{ uri: contact.cardImagePath }}
-                style={styles.cardImage}
+                style={[
+                  styles.cardImage,
+                  { transform: [{ rotate: `${imageRotation}deg` }] },
+                ]}
                 resizeMode="contain"
               />
               <View style={styles.tapHintOverlay}>
@@ -414,19 +429,13 @@ export default function ContactDetailScreen({ navigation, route }: Props) {
         visible={!!fullscreenImage}
         transparent={true}
         animationType="fade"
-        onRequestClose={() => {
-          setFullscreenImage(null);
-          setImageRotation(0);
-        }}
+        onRequestClose={() => setFullscreenImage(null)}
       >
         <TouchableWithoutFeedback onPress={() => setFullscreenImage(null)}>
           <View style={styles.fullscreenContainer}>
             <TouchableOpacity
               style={styles.fullscreenClose}
-              onPress={() => {
-                setFullscreenImage(null);
-                setImageRotation(0);
-              }}
+              onPress={() => setFullscreenImage(null)}
             >
               <Text style={styles.fullscreenCloseText}>✕</Text>
             </TouchableOpacity>
