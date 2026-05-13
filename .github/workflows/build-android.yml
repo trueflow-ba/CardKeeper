@@ -49,6 +49,19 @@ jobs:
       - name: Expo prebuild (generate android/)
         run: npx expo prebuild --clean --platform android
 
+      - name: Patch build.gradle for async-storage v3 local_repo
+        run: |
+          BUILD_GRADLE="android/build.gradle"
+          # Insert async-storage local_repo maven repo before google() in allprojects.repositories
+          sed -i '/allprojects {/,/}/ {
+            /repositories {/a\
+            maven {\
+                url("${rootProject.projectDir}/../node_modules/@react-native-async-storage/async-storage/local_repo")\
+            }
+          }' "$BUILD_GRADLE"
+          echo "Patched build.gradle:"
+          cat "$BUILD_GRADLE"
+
       - name: Decode keystore
         run: |
           echo "${{ secrets.CARDKEEPER_KEYSTORE_BASE64 }}" | base64 -d > android/app/cardkeeper-release.keystore
