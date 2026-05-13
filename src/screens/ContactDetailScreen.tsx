@@ -16,7 +16,8 @@ import {
 } from "react-native";
 import * as Contacts from "expo-contacts";
 import { getContactById, updateContact, updateCardImageRotation } from "../db/database";
-import { generateVCard, getDisplayName, getInitials } from "../types";
+import { getDisplayName, getInitials } from "../types";
+import { generateVCard } from "../utils/api";
 import QRCode from "react-native-qrcode-svg";
 
 const APP_DOWNLOAD_URL = "https://mrjm.zo.space/cardkeeper";

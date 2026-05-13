@@ -7,7 +7,7 @@ import {
   ActivityIndicator,
   Alert,
   SafeAreaView,
-  ScrollView,
+  TextInput,
   Dimensions,
 } from "react-native";
 import { CameraView, CameraType, useCameraPermissions } from "expo-camera";
@@ -52,12 +52,18 @@ const FIELD_LABELS: Record<string, string> = {
   address: "Address",
 };
 
+const FIELD_ORDER = [
+  "firstName", "lastName", "title", "company",
+  "phone", "phone2", "email", "website", "linkedin", "address",
+] as const;
+
 export default function ScanScreen({ navigation }: Props) {
   const [permission, requestPermission] = useCameraPermissions();
   const [scanning, setScanning] = useState(false);
   const [facing, setFacing] = useState<CameraType>("back");
   const [portraitMode, setPortraitMode] = useState(false);
   const [preview, setPreview] = useState<PreviewData | null>(null);
+  const [editFields, setEditFields] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const cameraRef = useRef<any>(null);
 
@@ -80,25 +86,13 @@ export default function ScanScreen({ navigation }: Props) {
     );
   }
 
-  const saveBase64Image = (base64: string, mimeType: string): string => {
-    const cardsDir = new Directory(Paths.document, "cards");
-    if (!cardsDir.exists) {
-      cardsDir.create({ intermediates: true });
-    }
-    const ext = mimeType.includes("png") ? "png" : "jpg";
-    const fileName = `card_${Date.now()}.${ext}`;
-    const cardFile = new File(cardsDir, fileName);
-    cardFile.write(base64, { encoding: "base64" });
-    return cardFile.uri;
-  };
-
   const handleScan = async () => {
     if (scanning || !cameraRef.current) return;
     setScanning(true);
 
     try {
       const photo = await cameraRef.current.takePictureAsync({
-        quality: 0.9,
+        quality: 1,
         base64: true,
         skipProcessing: false,
       });
@@ -131,11 +125,27 @@ export default function ScanScreen({ navigation }: Props) {
         const cropped = await manipulateAsync(
           photo.uri,
           [{ crop: { originX: cropX, originY: cropY, width: cropWidth, height: cropHeight } }],
-          { format: SaveFormat.JPEG, compress: 0.9 }
+          { format: SaveFormat.JPEG, compress: 1 }
         );
         croppedUri = cropped.uri;
       } catch (cropError) {
         console.warn("Crop failed, using full image:", cropError);
+      }
+
+      // Save cropped image to app documents for persistence
+      let finalImagePath = croppedUri;
+      try {
+        const cardsDir = new Directory(Paths.document, "cards");
+        if (!cardsDir.exists) {
+          cardsDir.create({ intermediates: true });
+        }
+        const croppedFile = new File(croppedUri);
+        const base64Cropped = await croppedFile.base64();
+        const savedFile = new File(cardsDir, `card_${Date.now()}.jpg`);
+        savedFile.write(base64Cropped, { encoding: "base64" });
+        finalImagePath = savedFile.uri;
+      } catch (saveErr) {
+        console.warn("Failed to persist image, using temp URI:", saveErr);
       }
 
       let base64ForOCR = photo.base64;
@@ -147,20 +157,37 @@ export default function ScanScreen({ navigation }: Props) {
       const deviceId = `device-${Date.now()}`;
       const result = await scanBusinessCard(base64ForOCR, "image/jpeg", deviceId);
 
-      let finalImagePath = croppedUri;
       const rotation = result.imageRotation || 0;
       if (rotation === 90 || rotation === 180 || rotation === 270) {
         try {
           const manipulated = await manipulateAsync(
-            croppedUri,
+            finalImagePath,
             [{ rotate: rotation }],
-            { format: SaveFormat.JPEG, compress: 0.9 }
+            { format: SaveFormat.JPEG, compress: 1 }
           );
           finalImagePath = manipulated.uri;
         } catch {}
       }
 
-      setPreview({ ...result, cardImagePath: finalImagePath } as PreviewData);
+      const previewData: PreviewData = {
+        rawText: result.rawText,
+        contact: result.contact,
+        cardImagePath: finalImagePath,
+      };
+
+      setPreview(previewData);
+      setEditFields({
+        firstName: previewData.contact.firstName || "",
+        lastName: previewData.contact.lastName || "",
+        title: previewData.contact.title || "",
+        company: previewData.contact.company || "",
+        phone: previewData.contact.phone || "",
+        phone2: previewData.contact.phone2 || "",
+        email: previewData.contact.email || "",
+        website: previewData.contact.website || "",
+        linkedin: previewData.contact.linkedin || "",
+        address: previewData.contact.address || "",
+      });
     } catch (err: any) {
       Alert.alert("Scan Error", err.message || "Failed to process card");
     } finally {
@@ -174,16 +201,16 @@ export default function ScanScreen({ navigation }: Props) {
 
     try {
       await insertContact({
-        firstName: preview.contact.firstName,
-        lastName: preview.contact.lastName,
-        title: preview.contact.title,
-        company: preview.contact.company,
-        phone: preview.contact.phone,
-        phone2: preview.contact.phone2,
-        email: preview.contact.email,
-        website: preview.contact.website,
-        linkedin: preview.contact.linkedin,
-        address: preview.contact.address,
+        firstName: editFields.firstName || null,
+        lastName: editFields.lastName || null,
+        title: editFields.title || null,
+        company: editFields.company || null,
+        phone: editFields.phone || null,
+        phone2: editFields.phone2 || null,
+        email: editFields.email || null,
+        website: editFields.website || null,
+        linkedin: editFields.linkedin || null,
+        address: editFields.address || null,
         cardImagePath: preview.cardImagePath,
       });
       setPreview(null);
@@ -198,22 +225,39 @@ export default function ScanScreen({ navigation }: Props) {
   if (preview) {
     return (
       <SafeAreaView style={styles.container}>
-        <ScrollView contentContainerStyle={styles.previewContainer}>
+        <View style={styles.previewScroll}>
           <Text style={styles.sectionTitle}>Scanned Information</Text>
+          <Text style={styles.editHint}>Tap any field to correct before saving</Text>
 
           <View style={styles.fieldGroup}>
-            {(
-              ["firstName", "lastName", "title", "company", "phone", "phone2", "email", "website", "linkedin", "address"] as const
-            ).map((field) => {
-              const value = preview.contact[field];
-              if (!value) return null;
-              return (
-                <View key={field} style={styles.fieldRow}>
-                  <Text style={styles.fieldLabel}>{FIELD_LABELS[field]}</Text>
-                  <Text style={styles.fieldValue}>{value}</Text>
-                </View>
-              );
-            })}
+            {FIELD_ORDER.map((field) => (
+              <View key={field} style={styles.fieldRow}>
+                <Text style={styles.fieldLabel}>{FIELD_LABELS[field]}</Text>
+                <TextInput
+                  style={styles.editInput}
+                  value={editFields[field] || ""}
+                  onChangeText={(text) =>
+                    setEditFields({ ...editFields, [field]: text })
+                  }
+                  placeholder={FIELD_LABELS[field]}
+                  placeholderTextColor="#555"
+                  autoCapitalize={
+                    field === "email" || field === "website" || field === "linkedin"
+                      ? "none"
+                      : "words"
+                  }
+                  keyboardType={
+                    field === "email"
+                      ? "email-address"
+                      : field === "phone" || field === "phone2"
+                      ? "phone-pad"
+                      : field === "website" || field === "linkedin"
+                      ? "url"
+                      : "default"
+                  }
+                />
+              </View>
+            ))}
           </View>
 
           <View style={styles.previewActions}>
@@ -224,7 +268,7 @@ export default function ScanScreen({ navigation }: Props) {
               <Text style={styles.buttonText}>Retake</Text>
             </TouchableOpacity>
           </View>
-        </ScrollView>
+        </View>
       </SafeAreaView>
     );
   }
@@ -352,12 +396,27 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
   },
   grantBtnText: { color: "#fff", fontWeight: "600", fontSize: 16 },
-  previewContainer: { padding: 20, paddingBottom: 60 },
-  sectionTitle: { color: "#fff", fontSize: 22, fontWeight: "700", marginBottom: 16 },
-  fieldGroup: { gap: 12, marginBottom: 24 },
-  fieldRow: { backgroundColor: "#1e1e2e", borderRadius: 10, padding: 14 },
-  fieldLabel: { color: "#6c5ce7", fontSize: 11, fontWeight: "600", textTransform: "uppercase", marginBottom: 4 },
-  fieldValue: { color: "#fff", fontSize: 16 },
+  previewScroll: { flex: 1, padding: 20, paddingBottom: 60 },
+  sectionTitle: { color: "#fff", fontSize: 22, fontWeight: "700", marginBottom: 4 },
+  editHint: { color: "#6c5ce7", fontSize: 13, marginBottom: 16, fontWeight: "500" },
+  fieldGroup: { gap: 8, marginBottom: 24 },
+  fieldRow: {
+    backgroundColor: "#1e1e2e",
+    borderRadius: 10,
+    padding: 12,
+  },
+  fieldLabel: {
+    color: "#6c5ce7",
+    fontSize: 10,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    marginBottom: 4,
+  },
+  editInput: {
+    color: "#fff",
+    fontSize: 15,
+    paddingVertical: 2,
+  },
   previewActions: { flexDirection: "row", gap: 12, marginTop: 8 },
   button: { flex: 1, padding: 16, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   saveButton: { backgroundColor: "#6c5ce7" },
