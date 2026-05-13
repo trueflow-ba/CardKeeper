@@ -25,16 +25,32 @@ interface Props {
 interface PreviewData {
   rawText: string;
   contact: {
-    name: string | null;
+    firstName: string | null;
+    lastName: string | null;
     title: string | null;
     company: string | null;
     phone: string | null;
+    phone2: string | null;
     email: string | null;
     website: string | null;
+    linkedin: string | null;
     address: string | null;
   };
   cardImagePath: string;
 }
+
+const FIELD_LABELS: Record<string, string> = {
+  firstName: "First Name",
+  lastName: "Last Name",
+  title: "Title",
+  company: "Company",
+  phone: "Phone",
+  phone2: "Phone 2",
+  email: "Email",
+  website: "Website",
+  linkedin: "LinkedIn",
+  address: "Address",
+};
 
 export default function ScanScreen({ navigation }: Props) {
   const [permission, requestPermission] = useCameraPermissions();
@@ -45,7 +61,6 @@ export default function ScanScreen({ navigation }: Props) {
   const [saving, setSaving] = useState(false);
   const cameraRef = useRef<any>(null);
 
-  // Frame dimensions based on mode
   const FRAME_WIDTH = portraitMode ? 180 : 300;
   const FRAME_HEIGHT = portraitMode ? 300 : 180;
 
@@ -94,43 +109,28 @@ export default function ScanScreen({ navigation }: Props) {
         return;
       }
 
-      // Calculate crop region based on frame position
-      // Camera preview fills the cameraContainer (flex: 1), minus controls bar
-      const cameraHeight = SCREEN_HEIGHT - 120 - 44; // screen - controls - status bar
+      const cameraHeight = SCREEN_HEIGHT - 120 - 44;
       const cameraWidth = SCREEN_WIDTH;
 
-      // Frame is centered in the camera view
       const frameX = (cameraWidth - FRAME_WIDTH) / 2;
       const frameY = (cameraHeight - FRAME_HEIGHT) / 2;
 
-      // Calculate scale factor (captured image vs screen preview)
-      // Photo dimensions come from the camera (typically 4:3 aspect ratio)
       const photoWidth = photo.width || 3024;
       const photoHeight = photo.height || 4032;
 
-      // Scale from screen coordinates to image coordinates
       const scaleX = photoWidth / cameraWidth;
       const scaleY = photoHeight / cameraHeight;
 
-      // Calculate crop region in image coordinates
       const cropX = Math.max(0, Math.floor(frameX * scaleX));
       const cropY = Math.max(0, Math.floor(frameY * scaleY));
       const cropWidth = Math.floor(FRAME_WIDTH * scaleX);
       const cropHeight = Math.floor(FRAME_HEIGHT * scaleY);
 
-      // Crop the image to just the frame area
       let croppedUri = photo.uri;
       try {
         const cropped = await manipulateAsync(
           photo.uri,
-          [{
-            crop: {
-              originX: cropX,
-              originY: cropY,
-              width: cropWidth,
-              height: cropHeight,
-            }
-          }],
+          [{ crop: { originX: cropX, originY: cropY, width: cropWidth, height: cropHeight } }],
           { format: SaveFormat.JPEG, compress: 0.9 }
         );
         croppedUri = cropped.uri;
@@ -138,21 +138,17 @@ export default function ScanScreen({ navigation }: Props) {
         console.warn("Crop failed, using full image:", cropError);
       }
 
-      // Read the cropped image as base64 for OCR
       let base64ForOCR = photo.base64;
       try {
         const croppedFile = new File(croppedUri);
         base64ForOCR = await croppedFile.base64();
-      } catch {
-        // If reading cropped file fails, use original base64
-      }
+      } catch {}
 
       const deviceId = `device-${Date.now()}`;
       const result = await scanBusinessCard(base64ForOCR, "image/jpeg", deviceId);
-      
-      // Auto-rotate image if OCR detected it's sideways
+
       let finalImagePath = croppedUri;
-      const rotation = (result as any).imageRotation || 0;
+      const rotation = result.imageRotation || 0;
       if (rotation === 90 || rotation === 180 || rotation === 270) {
         try {
           const manipulated = await manipulateAsync(
@@ -161,11 +157,9 @@ export default function ScanScreen({ navigation }: Props) {
             { format: SaveFormat.JPEG, compress: 0.9 }
           );
           finalImagePath = manipulated.uri;
-        } catch (e) {
-          // If rotation fails, keep cropped image
-        }
+        } catch {}
       }
-      
+
       setPreview({ ...result, cardImagePath: finalImagePath } as PreviewData);
     } catch (err: any) {
       Alert.alert("Scan Error", err.message || "Failed to process card");
@@ -180,12 +174,15 @@ export default function ScanScreen({ navigation }: Props) {
 
     try {
       await insertContact({
-        name: preview.contact.name,
+        firstName: preview.contact.firstName,
+        lastName: preview.contact.lastName,
         title: preview.contact.title,
         company: preview.contact.company,
         phone: preview.contact.phone,
+        phone2: preview.contact.phone2,
         email: preview.contact.email,
         website: preview.contact.website,
+        linkedin: preview.contact.linkedin,
         address: preview.contact.address,
         cardImagePath: preview.cardImagePath,
       });
@@ -205,22 +202,18 @@ export default function ScanScreen({ navigation }: Props) {
           <Text style={styles.sectionTitle}>Scanned Information</Text>
 
           <View style={styles.fieldGroup}>
-            {(["name", "title", "company", "phone", "email", "website", "address"] as const).map(
-              (field) => {
-                const value = preview.contact[field];
-                if (!value) return null;
-                const labels: Record<string, string> = {
-                  name: "Name", title: "Title", company: "Company",
-                  phone: "Phone", email: "Email", website: "Website", address: "Address",
-                };
-                return (
-                  <View key={field} style={styles.fieldRow}>
-                    <Text style={styles.fieldLabel}>{labels[field]}</Text>
-                    <Text style={styles.fieldValue}>{value}</Text>
-                  </View>
-                );
-              }
-            )}
+            {(
+              ["firstName", "lastName", "title", "company", "phone", "phone2", "email", "website", "linkedin", "address"] as const
+            ).map((field) => {
+              const value = preview.contact[field];
+              if (!value) return null;
+              return (
+                <View key={field} style={styles.fieldRow}>
+                  <Text style={styles.fieldLabel}>{FIELD_LABELS[field]}</Text>
+                  <Text style={styles.fieldValue}>{value}</Text>
+                </View>
+              );
+            })}
           </View>
 
           <View style={styles.previewActions}>

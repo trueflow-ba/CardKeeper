@@ -11,11 +11,32 @@ import {
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { getAllContacts, searchContacts, deleteContact } from "../db/database";
+import { getDisplayName, getInitials } from "../types";
 import type { Contact } from "../types";
 
 interface Props {
   navigation: any;
   searchQuery: string;
+}
+
+function mapRow(r: any): Contact {
+  return {
+    id: r.id,
+    firstName: r.first_name,
+    lastName: r.last_name,
+    title: r.title,
+    company: r.company,
+    phone: r.phone,
+    phone2: r.phone2,
+    email: r.email,
+    website: r.website,
+    linkedin: r.linkedin,
+    address: r.address,
+    cardImagePath: r.card_image_path,
+    cardImageRotation: r.card_image_rotation || 0,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
 }
 
 export default function ContactList({ navigation, searchQuery }: Props) {
@@ -27,22 +48,7 @@ export default function ContactList({ navigation, searchQuery }: Props) {
       const result = searchQuery
         ? await searchContacts(searchQuery)
         : await getAllContacts();
-      setContacts(
-        result.map((r: any) => ({
-          id: r.id,
-          name: r.name,
-          title: r.title,
-          company: r.company,
-          phone: r.phone,
-          email: r.email,
-          website: r.website,
-          address: r.address,
-          cardImagePath: r.card_image_path,
-          cardImageRotation: r.card_image_rotation || 0,
-          createdAt: r.created_at,
-          updatedAt: r.updated_at,
-        }))
-      );
+      setContacts(result.map(mapRow));
     } catch (err) {
       console.error("Failed to load contacts:", err);
     }
@@ -61,8 +67,8 @@ export default function ContactList({ navigation, searchQuery }: Props) {
   }, [loadContacts]);
 
   const handleDelete = (contact: Contact) => {
-    const displayName = contact.name || contact.company || "this contact";
-    Alert.alert("Delete Contact", `Remove ${displayName}?`, [
+    const dn = getDisplayName(contact);
+    Alert.alert("Delete Contact", `Remove ${dn}?`, [
       { text: "Cancel", style: "cancel" },
       {
         text: "Delete",
@@ -73,29 +79,6 @@ export default function ContactList({ navigation, searchQuery }: Props) {
         },
       },
     ]);
-  };
-
-  const getDisplayName = (contact: Contact): string => {
-    if (contact.name) return contact.name;
-    if (contact.company) return contact.company;
-    return "Unknown";
-  };
-
-  const getInitials = (contact: Contact): string => {
-    if (contact.name) {
-      const parts = contact.name.trim().split(/\s+/);
-      if (parts.length === 1) return parts[0][0].toUpperCase();
-      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-    }
-    if (contact.company) {
-      const words = contact.company.trim().split(/\s+/);
-      const meaningful = words.filter(
-        (w) => !["the", "and", "of", "inc", "llc", "ltd", "corp", "co"].includes(w.toLowerCase().replace(".", ""))
-      );
-      if (meaningful.length >= 2) return (meaningful[0][0] + meaningful[1][0]).toUpperCase();
-      return words[0][0].toUpperCase();
-    }
-    return "?";
   };
 
   const renderItem = ({ item }: { item: Contact }) => (
@@ -112,15 +95,8 @@ export default function ContactList({ navigation, searchQuery }: Props) {
       </View>
       <View style={styles.info}>
         <Text style={styles.name}>{getDisplayName(item)}</Text>
-        {item.name && item.company && (
-          <Text style={styles.subtitle}>{item.company}</Text>
-        )}
-        {!item.name && item.title && (
-          <Text style={styles.subtitle}>{item.title}</Text>
-        )}
-        {item.name && item.title && (
-          <Text style={styles.subtitleLight}>{item.title}</Text>
-        )}
+        {item.company && <Text style={styles.subtitle}>{item.company}</Text>}
+        {item.title && <Text style={styles.subtitleLight}>{item.title}</Text>}
       </View>
       {item.cardImagePath ? (
         <Image
@@ -210,13 +186,13 @@ const styles = StyleSheet.create({
   footer: {
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 20,
-    paddingBottom: 24,
+    paddingVertical: 10,
+    paddingBottom: 10,
     backgroundColor: "#0a0a1a",
     borderTopWidth: 1,
     borderTopColor: "#1e1e2e",
   },
-  footerLogo: { width: 100, height: 100, marginBottom: 4 },
+  footerLogo: { width: 120, height: 120, marginBottom: 2 },
   footerText: { color: "#888", fontSize: 12, fontWeight: "600" },
   footerTagline: { color: "#6c5ce7", fontSize: 11, fontWeight: "500", marginTop: 2 },
 });

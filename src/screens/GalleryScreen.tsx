@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -37,6 +37,16 @@ export default function GalleryScreen({ navigation }: Props) {
   const [scanning, setScanning] = useState(false);
   const [preview, setPreview] = useState<PreviewData | null>(null);
   const [saving, setSaving] = useState(false);
+  const [galleryPermission, setGalleryPermission] = useState<string | null>(null);
+  const [permissionChecked, setPermissionChecked] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const { status } = await ImagePicker.getMediaLibraryPermissionsAsync();
+      setGalleryPermission(status);
+      setPermissionChecked(true);
+    })();
+  }, []);
 
   const saveBase64Image = (base64: string, mimeType: string): string => {
     const cardsDir = new Directory(Paths.document, "cards");
@@ -75,6 +85,19 @@ export default function GalleryScreen({ navigation }: Props) {
 
   const handlePickImage = async () => {
     if (scanning) return;
+
+    if (galleryPermission !== "granted") {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      setGalleryPermission(status);
+      if (status !== "granted") {
+        Alert.alert(
+          "Photo Access Needed",
+          "Enable photo library access in Settings to import business card images",
+        );
+        return;
+      }
+    }
+
     setScanning(true);
 
     try {
@@ -180,6 +203,39 @@ export default function GalleryScreen({ navigation }: Props) {
             </TouchableOpacity>
           </View>
         </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
+  if (!permissionChecked) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.centerContent}>
+          <ActivityIndicator color="#6c5ce7" size="large" />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (galleryPermission !== "granted") {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.centerContent}>
+          <Text style={styles.icon}>🖼</Text>
+          <Text style={styles.title}>Photo Access Needed</Text>
+          <Text style={styles.subtitle}>
+            CardKeeper needs photo library access to import business card images from your gallery
+          </Text>
+          <TouchableOpacity
+            style={styles.pickButton}
+            onPress={async () => {
+              const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+              setGalleryPermission(status);
+            }}
+          >
+            <Text style={styles.pickButtonText}>Grant Permission</Text>
+          </TouchableOpacity>
+        </View>
       </SafeAreaView>
     );
   }
