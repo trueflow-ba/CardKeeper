@@ -248,6 +248,47 @@ export default function ContactDetailScreen({ navigation, route }: Props) {
     return filePath;
   };
 
+  const getAction = (key: FieldKey): (() => void) | undefined => {
+    if (editing) return undefined;
+    switch (key) {
+      case "phone":
+      case "phone2":
+        return () => {
+          const raw = (contact as any)[key] as string | null;
+          if (raw) {
+            const digits = raw.replace(/^[A-Za-z]+[:.\s]*/i, "").trim();
+            Linking.openURL(`tel:${digits}`);
+          }
+        };
+      case "email":
+        return () => { if (contact.email) Linking.openURL(`mailto:${contact.email}`); };
+      case "website":
+        return () => {
+          if (contact.website) {
+            let url = contact.website;
+            if (!url.startsWith("http")) url = `https://${url}`;
+            Linking.openURL(url);
+          }
+        };
+      case "linkedin":
+        return () => {
+          if (contact.linkedin) {
+            let url = contact.linkedin;
+            if (!url.startsWith("http")) url = `https://${url}`;
+            Linking.openURL(url);
+          }
+        };
+      case "address":
+        return () => {
+          if (contact.address) {
+            Linking.openURL(`https://maps.google.com/?q=${encodeURIComponent(contact.address!)}`);
+          }
+        };
+      default:
+        return undefined;
+    }
+  };
+
   const handleSaveToDevice = async () => {
     try {
       const filePath = await writeVCardFile();
