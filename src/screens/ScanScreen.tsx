@@ -9,6 +9,8 @@ import {
   SafeAreaView,
   TextInput,
   Dimensions,
+  ScrollView,
+  Keyboard,
 } from "react-native";
 import { CameraView, CameraType, useCameraPermissions } from "expo-camera";
 import { Paths, File, Directory } from "expo-file-system";
@@ -225,7 +227,12 @@ export default function ScanScreen({ navigation }: Props) {
   if (preview) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.previewScroll}>
+        <ScrollView
+          style={styles.previewScroll}
+          contentContainerStyle={styles.previewContent}
+          keyboardShouldPersistTaps="handled"
+          onScrollBeginDrag={() => Keyboard.dismiss()}
+        >
           <Text style={styles.sectionTitle}>Scanned Information</Text>
           <Text style={styles.editHint}>Tap any field to correct before saving</Text>
 
@@ -268,7 +275,7 @@ export default function ScanScreen({ navigation }: Props) {
               <Text style={styles.buttonText}>Retake</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </ScrollView>
       </SafeAreaView>
     );
   }
@@ -396,7 +403,8 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
   },
   grantBtnText: { color: "#fff", fontWeight: "600", fontSize: 16 },
-  previewScroll: { flex: 1, padding: 20, paddingBottom: 60 },
+  previewScroll: { flex: 1 },
+  previewContent: { padding: 20, paddingBottom: 100 },
   sectionTitle: { color: "#fff", fontSize: 22, fontWeight: "700", marginBottom: 4 },
   editHint: { color: "#6c5ce7", fontSize: 13, marginBottom: 16, fontWeight: "500" },
   fieldGroup: { gap: 8, marginBottom: 24 },

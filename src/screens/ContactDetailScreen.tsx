@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -11,8 +11,8 @@ import {
   Share,
   TextInput,
   Modal,
-  TouchableWithoutFeedback,
   Dimensions,
+  Animated,
 } from "react-native";
 import * as Contacts from "expo-contacts";
 import * as FileSystem from "expo-file-system";
@@ -71,6 +71,19 @@ export default function ContactDetailScreen({ navigation, route }: Props) {
   const [saving, setSaving] = useState(false);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
   const [imageRotation, setImageRotation] = useState(0);
+  const [isZoomed, setIsZoomed] = useState(false);
+
+  // Pinch zoom state
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const baseScaleRef = useRef(1);
+  const pinchStartDistRef = useRef(0);
+  const pinchStartScaleRef = useRef(1);
+  const wasPinchingRef = useRef(false);
+  const lastTapTimeRef = useRef(0);
+  const singleTapTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tapStartTimeRef = useRef(0);
+  const tapStartXRef = useRef(0);
+  const tapStartYRef = useRef(0);
 
   useEffect(() => {
     loadContact();
@@ -111,6 +124,94 @@ export default function ContactDetailScreen({ navigation, route }: Props) {
         address: c.address || "",
       });
     }
+  };
+
+  const closeFullscreenImage = () => {
+    setFullscreenImage(null);
+    setIsZoomed(false);
+    scaleAnim.setValue(1);
+    baseScaleRef.current = 1;
+    if (singleTapTimeoutRef.current) {
+      clearTimeout(singleTapTimeoutRef.current);
+      singleTapTimeoutRef.current = null;
+    }
+  };
+
+  const getTwoFingerDistance = (touches: any[]) => {
+    const dx = touches[0].pageX - touches[1].pageX;
+    const dy = touches[0].pageY - touches[1].pageY;
+    return Math.sqrt(dx * dx + dy * dy);
+  };
+
+  const onImageTouchStart = (e: any) => {
+    if (e.nativeEvent.touches.length === 2) {
+      wasPinchingRef.current = true;
+      pinchStartDistRef.current = getTwoFingerDistance(e.nativeEvent.touches);
+      pinchStartScaleRef.current = baseScaleRef.current;
+    } else if (e.nativeEvent.touches.length === 1) {
+      tapStartTimeRef.current = Date.now();
+      tapStartXRef.current = e.nativeEvent.touches[0].pageX;
+      tapStartYRef.current = e.nativeEvent.touches[0].pageY;
+    }
+  };
+
+  const onImageTouchMove = (e: any) => {
+    if (e.nativeEvent.touches.length === 2 && pinchStartDistRef.current > 0) {
+      wasPinchingRef.current = true;
+      const currentDist = getTwoFingerDistance(e.nativeEvent.touches);
+      const scaleRatio = currentDist / pinchStartDistRef.current;
+      const newScale = Math.max(0.5, Math.min(5, pinchStartScaleRef.current * scaleRatio));
+      scaleAnim.setValue(newScale);
+      baseScaleRef.current = newScale;
+    }
+  };
+
+  const onImageTouchEnd = (e: any) => {
+    // If still touching with other fingers, don't process taps yet
+    if (e.nativeEvent.touches.length > 0) return;
+
+    const wasPinching = wasPinchingRef.current;
+    wasPinchingRef.current = false;
+    pinchStartDistRef.current = 0;
+
+    if (wasPinching) {
+      // Snap back if zoomed out too much
+      if (baseScaleRef.current < 0.9) {
+        Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true }).start();
+        baseScaleRef.current = 1;
+        setIsZoomed(false);
+      } else {
+        setIsZoomed(baseScaleRef.current > 1.05);
+      }
+      return;
+    }
+
+    // Single/double tap detection
+    const elapsed = Date.now() - tapStartTimeRef.current;
+    if (elapsed > 300) return; // Not a tap (was a long press or drag)
+
+    const now = Date.now();
+    if (now - lastTapTimeRef.current < 300) {
+      // Double tap — reset zoom
+      if (singleTapTimeoutRef.current) {
+        clearTimeout(singleTapTimeoutRef.current);
+        singleTapTimeoutRef.current = null;
+      }
+      Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true }).start();
+      baseScaleRef.current = 1;
+      setIsZoomed(false);
+      lastTapTimeRef.current = 0;
+      return;
+    }
+
+    lastTapTimeRef.current = now;
+    // Single tap — close after delay (to check for double tap)
+    const tapTime = now;
+    singleTapTimeoutRef.current = setTimeout(() => {
+      if (lastTapTimeRef.current === tapTime) {
+        closeFullscreenImage();
+      }
+    }, 320);
   };
 
   if (!contact) {
@@ -381,7 +482,12 @@ export default function ContactDetailScreen({ navigation, route }: Props) {
             <Text style={styles.sectionLabel}>Business Card</Text>
             <TouchableOpacity
               activeOpacity={0.8}
-              onPress={() => setFullscreenImage(contact.cardImagePath!)}
+              onPress={() => {
+                setFullscreenImage(contact.cardImagePath!);
+                setIsZoomed(false);
+                scaleAnim.setValue(1);
+                baseScaleRef.current = 1;
+              }}
             >
               <Image
                 source={{ uri: contact.cardImagePath }}
@@ -527,33 +633,49 @@ export default function ContactDetailScreen({ navigation, route }: Props) {
         visible={!!fullscreenImage}
         transparent={true}
         animationType="fade"
-        onRequestClose={() => setFullscreenImage(null)}
+        onRequestClose={closeFullscreenImage}
       >
-        <TouchableWithoutFeedback onPress={() => setFullscreenImage(null)}>
-          <View style={styles.fullscreenContainer}>
-            <TouchableOpacity
-              style={styles.fullscreenClose}
-              onPress={() => setFullscreenImage(null)}
-            >
-              <Text style={styles.fullscreenCloseText}>✕</Text>
-            </TouchableOpacity>
+        <View style={styles.fullscreenContainer}>
+          <TouchableOpacity
+            style={styles.fullscreenClose}
+            onPress={closeFullscreenImage}
+          >
+            <Text style={styles.fullscreenCloseText}>✕</Text>
+          </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.rotateBtn}
-              onPress={handleRotateImage}
-            >
-              <Text style={styles.rotateBtnText}>↻</Text>
-            </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.rotateBtn}
+            onPress={handleRotateImage}
+          >
+            <Text style={styles.rotateBtnText}>↻</Text>
+          </TouchableOpacity>
 
-            {fullscreenImage && (
-              <Image
+          {fullscreenImage && (
+            <View
+              style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
+              onTouchStart={onImageTouchStart}
+              onTouchMove={onImageTouchMove}
+              onTouchEnd={onImageTouchEnd}
+            >
+              <Animated.Image
                 source={{ uri: fullscreenImage }}
-                style={[styles.fullscreenImage, { transform: [{ rotate: `${imageRotation}deg` }] }]}
+                style={[
+                  styles.fullscreenImage,
+                  {
+                    transform: [
+                      { scale: scaleAnim },
+                      { rotate: `${imageRotation}deg` },
+                    ],
+                  },
+                ]}
                 resizeMode="contain"
               />
-            )}
-          </View>
-        </TouchableWithoutFeedback>
+              {!isZoomed && (
+                <Text style={styles.pinchHint}>Pinch to zoom • Double-tap to reset</Text>
+              )}
+            </View>
+          )}
+        </View>
       </Modal>
     </>
   );
@@ -676,4 +798,11 @@ const styles = StyleSheet.create({
   },
   rotateBtnText: { color: "#fff", fontSize: 24, fontWeight: "700" },
   fullscreenImage: { width: SCREEN_WIDTH, height: SCREEN_HEIGHT * 0.8 },
+  pinchHint: {
+    position: "absolute",
+    bottom: 40,
+    color: "rgba(255,255,255,0.5)",
+    fontSize: 13,
+    fontWeight: "500",
+  },
 });
