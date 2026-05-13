@@ -2,45 +2,113 @@ name: Build Android APK
 
 on:
   workflow_dispatch:
+    inputs:
+      version_name:
+        description: 'Version name (e.g. 1.2.0)'
+        required: false
+        default: ''
+      create_release:
+        description: 'Create GitHub Release with APK'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+  push:
+    branches: [master]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.gitignore'
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    
+    permissions:
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Node.js 20
         uses: actions/setup-node@v4
         with:
           node-version: 20
-
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: zulu
-          java-version: 17
-
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+          cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Install Expo CLI
-        run: npm install -g eas-cli
+      - name: Expo prebuild (generate android/)
+        run: npx expo prebuild --clean --platform android
 
-      - name: Prebuild native project
-        run: npx expo prebuild --platform android --clean
+      - name: Decode keystore
+        run: |
+          echo "${{ secrets.CARDKEEPER_KEYSTORE_BASE64 }}" | base64 -d > android/app/cardkeeper-release.keystore
+          ls -la android/app/cardkeeper-release.keystore
 
-      - name: Build debug APK
-        working-directory: android
-        run: ./gradlew assembleDebug
+      - name: Patch build.gradle for release signing
+        run: |
+          BUILD_GRADLE="android/app/build.gradle"
+          
+          # Add release signing config after the debug signing config block
+          sed -i '/signingConfigs {/,/}/ {
+            /}/ a\
+          release {\
+              storeFile file("cardkeeper-release.keystore")\
+              storePassword "${{ secrets.CARDKEEPER_KEYSTORE_PASSWORD }}"\
+              keyAlias "${{ secrets.CARDKEEPER_KEY_ALIAS }}"\
+              keyPassword "${{ secrets.CARDKEEPER_KEY_PASSWORD }}"\
+          }
+          }' "$BUILD_GRADLE"
+
+          # Replace debug signingConfig in release block with release signingConfig
+          sed -i 's/signingConfig signingConfigs.debug/signingConfig signingConfigs.release/g' "$BUILD_GRADLE"
+
+      - name: Set version from input
+        if: github.event.inputs.version_name != ''
+        run: |
+          VERSION="${{ github.event.inputs.version_name }}"
+          VERSION_CODE=$(echo "$VERSION" | tr -d '.')
+          sed -i "s/versionCode [0-9]*/versionCode $VERSION_CODE/" android/app/build.gradle
+          sed -i "s/versionName \"[^\"]*\"/versionName \"$VERSION\"/" android/app/build.gradle
+
+      - name: Build release APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon --warning-mode all
+
+      - name: Find APK
+        id: apk
+        run: |
+          APK_PATH=$(find android/app/build/outputs -name "*.apk" -type f | head -1)
+          echo "path=$APK_PATH" >> $GITHUB_OUTPUT
+          APK_NAME=$(basename "$APK_PATH")
+          echo "name=$APK_NAME" >> $GITHUB_OUTPUT
+          ls -lh "$APK_PATH"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: CardKeeper-debug
-          path: android/app/build/outputs/apk/debug/*.apk
+          name: CardKeeper-APK
+          path: ${{ steps.apk.outputs.path }}
           retention-days: 30
+
+      - name: Create GitHub Release
+        if: github.event.inputs.create_release == 'true' || github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ github.event.inputs.version_name || 'latest-build' }}
+          name: CardKeeper ${{ github.event.inputs.version_name || 'Latest Build' }}
+          files: ${{ steps.apk.outputs.path }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
