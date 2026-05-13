@@ -14,6 +14,7 @@ import * as ImagePicker from "expo-image-picker";
 import { Paths, File, Directory } from "expo-file-system";
 import { insertContact } from "../db/database";
 import { scanBusinessCard } from "../utils/api";
+import * as DocumentPicker from "expo-document-picker";
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 
 interface Props {
@@ -178,6 +179,43 @@ export default function GalleryScreen({ navigation }: Props) {
     }
   };
 
+  const handlePickDocument = async () => {
+    if (scanning) return;
+
+    setScanning(true);
+
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: "image/*",
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+
+      if (result.canceled || !result.assets?.[0]) {
+        setScanning(false);
+        return;
+      }
+
+      const asset = result.assets[0];
+      const docFile = new File(asset.uri);
+      const base64 = await docFile.base64();
+
+      if (!base64) {
+        Alert.alert("Error", "Could not read image data from file");
+        setScanning(false);
+        return;
+      }
+
+      const mimeType = asset.mimeType || "image/jpeg";
+      const imagePath = saveBase64Image(base64, mimeType);
+      await processImage(base64, mimeType, imagePath);
+    } catch (err: any) {
+      Alert.alert("Import Error", err.message || "Failed to import image");
+    } finally {
+      setScanning(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!preview || saving) return;
     setSaving(true);
@@ -295,21 +333,28 @@ export default function GalleryScreen({ navigation }: Props) {
     <SafeAreaView style={styles.container}>
       <View style={styles.centerContent}>
         <Text style={styles.icon}>🖼</Text>
-        <Text style={styles.title}>Import from Gallery</Text>
+        <Text style={styles.title}>Import Business Card</Text>
         <Text style={styles.subtitle}>
-          Select a photo of a business card from your phone's gallery
+          Choose a photo from your gallery or pick an image from any app
         </Text>
-        <TouchableOpacity
-          style={styles.pickButton}
-          onPress={handlePickImage}
-          disabled={scanning}
-        >
-          {scanning ? (
-            <ActivityIndicator color="#fff" size="large" />
-          ) : (
-            <Text style={styles.pickButtonText}>Choose Photo</Text>
-          )}
-        </TouchableOpacity>
+        <View style={styles.buttonGroup}>
+          <TouchableOpacity
+            style={[styles.pickButton, styles.galleryButton]}
+            onPress={handlePickImage}
+            disabled={scanning}
+          >
+            <Text style={styles.pickButtonIcon}>🖼</Text>
+            <Text style={styles.pickButtonText}>Gallery</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.pickButton, styles.filesButton]}
+            onPress={handlePickDocument}
+            disabled={scanning}
+          >
+            <Text style={styles.pickButtonIcon}>📁</Text>
+            <Text style={styles.pickButtonText}>Files & Apps</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {scanning && (
@@ -342,10 +387,20 @@ const styles = StyleSheet.create({
   pickButton: {
     backgroundColor: "#6c5ce7",
     borderRadius: 16,
-    paddingHorizontal: 40,
+    paddingHorizontal: 28,
     paddingVertical: 18,
+    alignItems: "center",
+    flex: 1,
   },
-  pickButtonText: { color: "#fff", fontWeight: "700", fontSize: 18 },
+  pickButtonIcon: { fontSize: 28, marginBottom: 6 },
+  pickButtonText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+  buttonGroup: {
+    flexDirection: "row",
+    gap: 12,
+    width: "100%",
+  },
+  galleryButton: { backgroundColor: "#6c5ce7" },
+  filesButton: { backgroundColor: "#4a3db5" },
   previewContainer: { padding: 20, paddingBottom: 60 },
   sectionTitle: { color: "#fff", fontSize: 22, fontWeight: "700", marginBottom: 4 },
   editHint: { color: "#6c5ce7", fontSize: 13, marginBottom: 16, fontWeight: "500" },
